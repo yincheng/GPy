@@ -10,12 +10,8 @@ from GPy.util.univariate_Gaussian import std_norm_pdf,std_norm_cdf,inv_std_norm_
 
 class GPTransformation(object):
     """
-    Link function class for doing non-Gaussian likelihoods approximation
-
-    :param Y: observed output (Nx1 numpy.darray)
-
-    .. note:: Y values allowed depend on the likelihood_function used
-
+    Class of GP transformations.
+    This class is used for defining noise models based on a transformation of a GP.
     """
     def __init__(self):
         pass

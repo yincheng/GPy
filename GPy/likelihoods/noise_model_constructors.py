@@ -27,6 +27,9 @@ def binomial(gp_link=None):
         analytical_mean = False
         analytical_variance = False
 
+    #noise_model = noise_models.binomial_noise.Binomial(gp_link)
+    #noise_model._likelihood_computations(analytical_mean,analytical_variance)
+    #return noise_model
     return noise_models.binomial_noise.Binomial(gp_link,analytical_mean,analytical_variance)
 
 def exponential(gp_link=None):

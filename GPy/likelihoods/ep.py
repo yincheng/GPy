@@ -5,6 +5,7 @@ from likelihood import likelihood
 
 class EP(likelihood):
     def __init__(self,data,noise_model):
+    #def __init__(self,data,noise_model,analytical_mean=False,analytical_variance=False):
         """
         Expectation Propagation
 
@@ -20,6 +21,24 @@ class EP(likelihood):
         self.is_heteroscedastic = True
         self.Nparams = 0
         self._transf_data = self.noise_model._preprocess_values(data)
+
+        #Define whether moments matching is solved analytically or numerically
+        #self.analytical_mean = analytical_mean
+        #self.analytical_variance = analytical_variance
+        #if self.analytical_mean:
+        #    self.moments_match = self.noise_model._moments_match_analytical
+        #    self.predictive_mean = self.noise_model._predictive_mean_analytical
+        #else:
+        #    self.moments_match = self.noise_model._moments_match_numerical
+        #    self.predictive_mean = self.noise_model._predictive_mean_numerical
+        #if self.analytical_variance:
+        #    self.predictive_variance = self.noise_model._predictive_variance_analytical
+        #else:
+        #    self.predictive_variance = self.noise_model._predictive_variance_numerical
+
+
+
+
 
         #Initial values - Likelihood approximation parameters:
         #p(y|f) = t(f|tau_tilde,v_tilde)
@@ -135,6 +154,7 @@ class EP(likelihood):
                 self.v_[i] = mu[i]/Sigma[i,i] - self.eta*self.v_tilde[i]
                 #Marginal moments
                 self.Z_hat[i], mu_hat[i], sigma2_hat[i] = self.noise_model.moments_match(self._transf_data[i],self.tau_[i],self.v_[i])
+                #self.Z_hat[i], mu_hat[i], sigma2_hat[i] = self.moments_match(self._transf_data[i],self.tau_[i],self.v_[i])
                 #Site parameters update
                 Delta_tau = self.delta/self.eta*(1./sigma2_hat[i] - 1./Sigma[i,i])
                 Delta_v = self.delta/self.eta*(mu_hat[i]/sigma2_hat[i] - mu[i]/Sigma[i,i])

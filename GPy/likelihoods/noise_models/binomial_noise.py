@@ -18,8 +18,11 @@ class Binomial(NoiseDistribution):
     L(x) = \\Phi (Y_i*f_i)
     $$
     """
-    def __init__(self,gp_link=None,analytical_mean=False,analytical_variance=False):
-        super(Binomial, self).__init__(gp_link,analytical_mean,analytical_variance)
+    def __init__(self,link=None,analytical_mean=False,analytical_variance=False):
+        super(Binomial, self).__init__(link,analytical_mean,analytical_variance)
+        #super(Binomial, self).__init__(link)
+        #self._likelihood_computations(analytical_mean,analytical_variance)
+        #self._likelihood_computations(analytical_mean,analytical_variance)
 
     def _preprocess_values(self,Y):
         """
@@ -43,14 +46,14 @@ class Binomial(NoiseDistribution):
         :param tau_i: precision of the cavity distribution (float)
         :param v_i: mean/variance of the cavity distribution (float)
         """
-        if isinstance(self.gp_link,gp_transformations.Probit):
+        if isinstance(self.link,gp_transformations.Probit):
             z = data_i*v_i/np.sqrt(tau_i**2 + tau_i)
             Z_hat = std_norm_cdf(z)
             phi = std_norm_pdf(z)
             mu_hat = v_i/tau_i + data_i*phi/(Z_hat*np.sqrt(tau_i**2 + tau_i))
             sigma2_hat = 1./tau_i - (phi/((tau_i**2+tau_i)*Z_hat))*(z+phi/Z_hat)
 
-        elif isinstance(self.gp_link,gp_transformations.Heaviside):
+        elif isinstance(self.link,gp_transformations.Heaviside):
             a = data_i*v_i/np.sqrt(tau_i)
             Z_hat = std_norm_cdf(a)
             N = std_norm_pdf(a)
@@ -62,61 +65,61 @@ class Binomial(NoiseDistribution):
         return Z_hat, mu_hat, sigma2_hat
 
     def _predictive_mean_analytical(self,mu,sigma):
-        if isinstance(self.gp_link,gp_transformations.Probit):
+        if isinstance(self.link,gp_transformations.Probit):
             return stats.norm.cdf(mu/np.sqrt(1+sigma**2))
-        elif isinstance(self.gp_link,gp_transformations.Heaviside):
+        elif isinstance(self.link,gp_transformations.Heaviside):
             return stats.norm.cdf(mu/sigma)
         else:
             raise NotImplementedError
 
     def _predictive_variance_analytical(self,mu,sigma, pred_mean):
-        if isinstance(self.gp_link,gp_transformations.Heaviside):
+        if isinstance(self.link,gp_transformations.Heaviside):
             return 0.
         else:
             raise NotImplementedError
 
-    def _mass(self,gp,obs):
+    def _pdf(self,gp,obs):
         #NOTE obs must be in {0,1}
-        p = self.gp_link.transf(gp)
+        p = self.link.transf(gp)
         return p**obs * (1.-p)**(1.-obs)
 
-    def _nlog_mass(self,gp,obs):
-        p = self.gp_link.transf(gp)
+    def _nlog_pdf(self,gp,obs):
+        p = self.link.transf(gp)
         return obs*np.log(p) + (1.-obs)*np.log(1-p)
 
-    def _dnlog_mass_dgp(self,gp,obs):
-        p = self.gp_link.transf(gp)
-        dp = self.gp_link.dtransf_df(gp)
+    def _dnlog_pdf_dgp(self,gp,obs):
+        p = self.link.transf(gp)
+        dp = self.link.dtransf_df(gp)
         return obs/p * dp - (1.-obs)/(1.-p) * dp
 
-    def _d2nlog_mass_dgp2(self,gp,obs):
-        p = self.gp_link.transf(gp)
-        return (obs/p + (1.-obs)/(1.-p))*self.gp_link.d2transf_df2(gp) + ((1.-obs)/(1.-p)**2-obs/p**2)*self.gp_link.dtransf_df(gp)
+    def _d2nlog_pdf_dgp2(self,gp,obs):
+        p = self.link.transf(gp)
+        return (obs/p + (1.-obs)/(1.-p))*self.link.d2transf_df2(gp) + ((1.-obs)/(1.-p)**2-obs/p**2)*self.link.dtransf_df(gp)
 
     def _mean(self,gp):
         """
         Mass (or density) function
         """
-        return self.gp_link.transf(gp)
+        return self.link.transf(gp)
 
     def _dmean_dgp(self,gp):
-        return self.gp_link.dtransf_df(gp)
+        return self.link.dtransf_df(gp)
 
     def _d2mean_dgp2(self,gp):
-        return self.gp_link.d2transf_df2(gp)
+        return self.link.d2transf_df2(gp)
 
     def _variance(self,gp):
         """
         Mass (or density) function
         """
-        p = self.gp_link.transf(gp)
+        p = self.link.transf(gp)
         return p*(1.-p)
 
     def _dvariance_dgp(self,gp):
-        return self.gp_link.dtransf_df(gp)*(1. - 2.*self.gp_link.transf(gp))
+        return self.link.dtransf_df(gp)*(1. - 2.*self.link.transf(gp))
 
     def _d2variance_dgp2(self,gp):
-        return self.gp_link.d2transf_df2(gp)*(1. - 2.*self.gp_link.transf(gp)) - 2*self.gp_link.dtransf_df(gp)**2
+        return self.link.d2transf_df2(gp)*(1. - 2.*self.link.transf(gp)) - 2*self.link.dtransf_df(gp)**2
 
 
     def samples(self, gp):
@@ -128,5 +131,5 @@ class Binomial(NoiseDistribution):
         """
         orig_shape = gp.shape
         gp = gp.flatten()
-        Ysim = np.array([np.random.binomial(1,self.gp_link.transf(gpj),size=1) for gpj in gp])
+        Ysim = np.array([np.random.binomial(1,self.link.transf(gpj),size=1) for gpj in gp])
         return Ysim.reshape(orig_shape)
