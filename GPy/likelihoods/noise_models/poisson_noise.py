@@ -18,52 +18,52 @@ class Poisson(NoiseDistribution):
 
     ..Note: Y is expected to take values in {0,1,2,...}
     """
-    def __init__(self,gp_link=None,analytical_mean=False,analytical_variance=False):
-        super(Poisson, self).__init__(gp_link,analytical_mean,analytical_variance)
+    def __init__(self,link=None,analytical_mean=False,analytical_variance=False):
+        super(Poisson, self).__init__(link,analytical_mean,analytical_variance)
 
     def _preprocess_values(self,Y): #TODO
         return Y
 
-    def _mass(self,gp,obs):
+    def _pdf(self,gp,obs):
         """
         Mass (or density) function
         """
-        return stats.poisson.pmf(obs,self.gp_link.transf(gp))
+        return stats.poisson.pmf(obs,self.link.transf(gp))
 
-    def _nlog_mass(self,gp,obs):
+    def _nlog_pdf(self,gp,obs):
         """
         Negative logarithm of the un-normalized distribution: factors that are not a function of gp are omitted
         """
-        return self.gp_link.transf(gp) - obs * np.log(self.gp_link.transf(gp)) + np.log(special.gamma(obs+1))
+        return self.link.transf(gp) - obs * np.log(self.link.transf(gp)) + np.log(special.gamma(obs+1))
 
-    def _dnlog_mass_dgp(self,gp,obs):
-        return self.gp_link.dtransf_df(gp) * (1. - obs/self.gp_link.transf(gp))
+    def _dnlog_pdf_dgp(self,gp,obs):
+        return self.link.dtransf_df(gp) * (1. - obs/self.link.transf(gp))
 
-    def _d2nlog_mass_dgp2(self,gp,obs):
-        d2_df = self.gp_link.d2transf_df2(gp)
-        transf = self.gp_link.transf(gp)
-        return obs * ((self.gp_link.dtransf_df(gp)/transf)**2 - d2_df/transf) + d2_df
+    def _d2nlog_pdf_dgp2(self,gp,obs):
+        d2_df = self.link.d2transf_df2(gp)
+        transf = self.link.transf(gp)
+        return obs * ((self.link.dtransf_df(gp)/transf)**2 - d2_df/transf) + d2_df
 
     def _mean(self,gp):
         """
         Mass (or density) function
         """
-        return self.gp_link.transf(gp)
+        return self.link.transf(gp)
 
     def _dmean_dgp(self,gp):
-        return self.gp_link.dtransf_df(gp)
+        return self.link.dtransf_df(gp)
 
     def _d2mean_dgp2(self,gp):
-        return self.gp_link.d2transf_df2(gp)
+        return self.link.d2transf_df2(gp)
 
     def _variance(self,gp):
         """
         Mass (or density) function
         """
-        return self.gp_link.transf(gp)
+        return self.link.transf(gp)
 
     def _dvariance_dgp(self,gp):
-        return self.gp_link.dtransf_df(gp)
+        return self.link.dtransf_df(gp)
 
     def _d2variance_dgp2(self,gp):
-        return self.gp_link.d2transf_df2(gp)
+        return self.link.d2transf_df2(gp)

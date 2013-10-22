@@ -45,7 +45,7 @@ def exponential(gp_link=None):
     analytical_variance = False
     return noise_models.exponential_noise.Exponential(gp_link,analytical_mean,analytical_variance)
 
-def gaussian_ep(gp_link=None,variance=1.):
+def gaussian_ep(gp_link=None,variance=.1):
     """
     Construct a gaussian likelihood
 

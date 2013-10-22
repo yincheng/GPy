@@ -133,3 +133,6 @@ class Binomial(NoiseDistribution):
         gp = gp.flatten()
         Ysim = np.array([np.random.binomial(1,self.link.transf(gpj),size=1) for gpj in gp])
         return Ysim.reshape(orig_shape)
+
+    def update_additional_params(self,gp,Y):
+        pass

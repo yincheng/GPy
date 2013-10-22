@@ -5,7 +5,7 @@ import numpy as np
 import pylab as pb
 from ..util.linalg import mdot, jitchol, tdot, symmetrify, backsub_both_sides, chol_inv, dtrtrs, dpotrs, dpotri
 from scipy import linalg
-from ..likelihoods import Gaussian, EP,EP_Mixed_Noise
+from ..likelihoods import Gaussian, EP,EPMixedNoise
 from gp_base import GPBase
 
 class SparseGP(GPBase):

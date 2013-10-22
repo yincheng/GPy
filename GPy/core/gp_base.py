@@ -110,7 +110,7 @@ class GPBase(Model):
 
         return Ysim
 
-    def plot_f(self, samples=0, plot_limits=None, which_data='all', which_parts='all', resolution=None, full_cov=False, fignum=None, ax=None):
+    def plot_f(self, samples=0, plot_limits=None, which_data='all', which_parts='all', resolution=None, full_cov=False, fignum=None, ax=None, noise_model=None):
         """
         Plot the GP's view of the world, where the data is normalized and the
           - In one dimension, the function is plotted with a shaded region identifying two standard deviations.
@@ -176,7 +176,7 @@ class GPBase(Model):
         else:
             raise NotImplementedError, "Cannot define a frame with more than two input dimensions"
 
-    def plot(self, plot_limits=None, which_data='all', which_parts='all', resolution=None, levels=20, samples=0, fignum=None, ax=None, fixed_inputs=[], linecol=Tango.colorsHex['darkBlue'],fillcol=Tango.colorsHex['lightBlue']):
+    def plot(self, plot_limits=None, which_data='all', which_parts='all', resolution=None, levels=20, samples=0, fignum=None, ax=None, fixed_inputs=[], linecol=Tango.colorsHex['darkBlue'],fillcol=Tango.colorsHex['lightBlue'],noise_model=None):
         """
         Plot the GP with noise where the likelihood is Gaussian.
 
@@ -234,7 +234,8 @@ class GPBase(Model):
             for i,v in fixed_inputs:
                 Xgrid[:,i] = v
 
-            m, v, lower, upper = self.predict(Xgrid, which_parts=which_parts)
+            #m, v, lower, upper = self.predict(Xgrid, which_parts=which_parts)
+            m, v, lower, upper = self.predict(Xgrid, which_parts=which_parts,noise_model=fixed_inputs[0][1])
 
             if samples: #NOTE not tested with fixed_inputs
                 Ysim = self.posterior_samples(Xgrid, samples, which_parts=which_parts, full_cov=True)
@@ -255,7 +256,7 @@ class GPBase(Model):
             resolution = resolution or 50
             Xnew, _, _, xmin, xmax = x_frame2D(self.X, plot_limits, resolution)
             x, y = np.linspace(xmin[0], xmax[0], resolution), np.linspace(xmin[1], xmax[1], resolution)
-            m, _, lower, upper = self.predict(Xnew, which_parts=which_parts)
+            m, _, lower, upper = self.predict(Xnew, which_parts=which_parts,noise_model=noise_model)
             m = m.reshape(resolution, resolution).T
             ax.contour(x, y, m, levels, vmin=m.min(), vmax=m.max(), cmap=pb.cm.jet) # @UndefinedVariable
             Yf = self.likelihood.Y.flatten()

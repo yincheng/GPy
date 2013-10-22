@@ -15,22 +15,28 @@ class Gaussian(NoiseDistribution):
     :param mean: mean value of the Gaussian distribution
     :param variance: mean value of the Gaussian distribution
     """
-    def __init__(self,gp_link=None,analytical_mean=False,analytical_variance=False,variance=1.):
+    def __init__(self,link=None,analytical_mean=False,analytical_variance=False,variance=.01):
         self.variance = variance
-        super(Gaussian, self).__init__(gp_link,analytical_mean,analytical_variance)
+        super(Gaussian, self).__init__(link,analytical_mean,analytical_variance)
 
+    """
     def _get_params(self):
-        return np.array([self.variance])
+        pass
+        #return np.array([self.variance])
 
     def _get_param_names(self):
-        return ['noise_model_variance']
+        pass
+        #return ['noise_model_variance']
 
     def _set_params(self,p):
-        self.variance = p
+        pass
+        #self.variance = p
 
     def _gradients(self,partial):
-        return np.zeros(1)
+        pass
+        #return np.zeros(1)
         #return np.sum(partial)
+    """
 
     def _preprocess_values(self,Y):
         """
@@ -55,35 +61,35 @@ class Gaussian(NoiseDistribution):
 
     def _predictive_mean_analytical(self,mu,sigma):
         new_sigma2 = self.predictive_variance(mu,sigma)
-        return new_sigma2*(mu/sigma**2 + self.gp_link.transf(mu)/self.variance)
+        return new_sigma2*(mu/sigma**2 + self.link.transf(mu)/self.variance)
 
     def _predictive_variance_analytical(self,mu,sigma):
         return 1./(1./self.variance + 1./sigma**2)
 
-    def _mass(self,gp,obs):
-        #return std_norm_pdf( (self.gp_link.transf(gp)-obs)/np.sqrt(self.variance) )
-        return stats.norm.pdf(obs,self.gp_link.transf(gp),np.sqrt(self.variance))
+    def _pdf(self,gp,obs):
+        #return std_norm_pdf( (self.link.transf(gp)-obs)/np.sqrt(self.variance) )
+        return stats.norm.pdf(obs,self.link.transf(gp),np.sqrt(self.variance))
 
-    def _nlog_mass(self,gp,obs):
-        return .5*((self.gp_link.transf(gp)-obs)**2/self.variance + np.log(2.*np.pi*self.variance))
+    def _nlog_pdf(self,gp,obs):
+        return .5*((self.link.transf(gp)-obs)**2/self.variance + np.log(2.*np.pi*self.variance))
 
-    def _dnlog_mass_dgp(self,gp,obs):
-        return (self.gp_link.transf(gp)-obs)/self.variance * self.gp_link.dtransf_df(gp)
+    def _dnlog_pdf_dgp(self,gp,obs):
+        return (self.link.transf(gp)-obs)/self.variance * self.link.dtransf_df(gp)
 
-    def _d2nlog_mass_dgp2(self,gp,obs):
-        return ((self.gp_link.transf(gp)-obs)*self.gp_link.d2transf_df2(gp) + self.gp_link.dtransf_df(gp)**2)/self.variance
+    def _d2nlog_pdf_dgp2(self,gp,obs):
+        return ((self.link.transf(gp)-obs)*self.link.d2transf_df2(gp) + self.link.dtransf_df(gp)**2)/self.variance
 
     def _mean(self,gp):
         """
         Mass (or density) function
         """
-        return self.gp_link.transf(gp)
+        return self.link.transf(gp)
 
     def _dmean_dgp(self,gp):
-        return self.gp_link.dtransf_df(gp)
+        return self.link.dtransf_df(gp)
 
     def _d2mean_dgp2(self,gp):
-        return self.gp_link.d2transf_df2(gp)
+        return self.link.d2transf_df2(gp)
 
     def _variance(self,gp):
         """
@@ -96,3 +102,9 @@ class Gaussian(NoiseDistribution):
 
     def _d2variance_dgp2(self,gp):
         return 0
+
+    def update_additional_params(self,gp,Y):
+        assert gp.size == Y.size
+        self.variance = np.mean((gp - Y)**2.)
+        print self.variance
+

@@ -395,3 +395,6 @@ class EP(likelihood):
             self.np2.append(self.v_tilde.copy())
 
         return self._compute_GP_variables()
+
+    def update_additional_params(self,gp_mean):
+        self.noise_model.update_additional_params(gp_mean,self.data)

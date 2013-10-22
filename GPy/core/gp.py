@@ -70,6 +70,8 @@ class GP(GPBase):
         """
         self.likelihood.restart()
         self.likelihood.fit_full(self.kern.K(self.X), **kwargs)
+        #raw_mean = self._raw_predict(self.X)[0] #FIXME
+        #self.likelihood.update_additional_params(raw_mean) #FIXME
         self._set_params(self._get_params()) # update the GP
 
     def _model_fit_term(self):
