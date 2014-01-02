@@ -8,6 +8,7 @@ from ...util.linalg import tdot
 from ...util.misc import fast_array_equal
 from scipy import weave
 from ...util.config import *
+from ..cython import kernels as c_kernels
 
 class Linear(Kernpart):
     """
@@ -51,26 +52,6 @@ class Linear(Kernpart):
         # initialize cache
         self._Z, self._mu, self._S = np.empty(shape=(3, 1))
         self._X, self._X2, self._params = np.empty(shape=(3, 1))
-
-        # a set of optional args to pass to weave
-        weave_options_openmp = {'headers'           : ['<omp.h>'],
-                                'extra_compile_args': ['-fopenmp -O3'],
-                                'extra_link_args'   : ['-lgomp'],
-                                'libraries': ['gomp']}
-        weave_options_noopenmp = {'extra_compile_args': ['-O3']}
-
-
-        if config.getboolean('parallel', 'openmp'):
-            self.weave_options = weave_options_openmp
-            self.weave_support_code =  """
-            #include <omp.h>
-            #include <math.h>
-            """
-        else:
-            self.weave_options = weave_options_noopenmp
-            self.weave_support_code = """
-            #include <math.h>
-            """
 
     def _get_params(self):
         return self.variances
@@ -206,52 +187,12 @@ class Linear(Kernpart):
         AZZA = self.ZA.T[:, None, :, None] * self.ZA[None, :, None, :]
         AZZA = AZZA + AZZA.swapaxes(1, 2)
         AZZA_2 = AZZA/2.
-        #muAZZA = np.tensordot(mu,AZZA,(-1,0))
-        #target_mu_dummy, target_S_dummy = np.zeros_like(target_mu), np.zeros_like(target_S)
-        #target_mu_dummy += (dL_dpsi2[:, :, :, None] * muAZZA).sum(1).sum(1)
-        #target_S_dummy += (dL_dpsi2[:, :, :, None] * self.ZA[None, :, None, :] * self.ZA[None, None, :, :]).sum(1).sum(1)
-
-
-        if config.getboolean('parallel', 'openmp'):
-            pragma_string = "#pragma omp parallel for private(m,mm,q,qq,factor,tmp)"
-        else:
-            pragma_string = ''
-
-        #Using weave, we can exploiut the symmetry of this problem:
-        code = """
-        int n, m, mm,q,qq;
-        double factor,tmp;
-        %s
-        for(n=0;n<N;n++){
-          for(m=0;m<num_inducing;m++){
-            for(mm=0;mm<=m;mm++){
-              //add in a factor of 2 for the off-diagonal terms (and then count them only once)
-              if(m==mm)
-                factor = dL_dpsi2(n,m,mm);
-              else
-                factor = 2.0*dL_dpsi2(n,m,mm);
-
-              for(q=0;q<input_dim;q++){
-
-                //take the dot product of mu[n,:] and AZZA[:,m,mm,q] TODO: blas!
-                tmp = 0.0;
-                for(qq=0;qq<input_dim;qq++){
-                  tmp += mu(n,qq)*AZZA(qq,m,mm,q);
-                }
-
-                target_mu(n,q) += factor*tmp;
-                target_S(n,q) += factor*AZZA_2(q,m,mm,q);
-              }
-            }
-          }
-        }
-        """ % pragma_string
-
-
+        # muAZZA = np.tensordot(mu,AZZA,(-1,0))
+        # target_mu_dummy, target_S_dummy = np.zeros_like(target_mu), np.zeros_like(target_S)
+        # target_mu_dummy += (dL_dpsi2[:, :, :, None] * muAZZA).sum(1).sum(1)
+        # target_S_dummy += (dL_dpsi2[:, :, :, None] * self.ZA[None, :, None, :] * self.ZA[None, None, :, :]).sum(1).sum(1)
         N,num_inducing,input_dim = int(mu.shape[0]),int(Z.shape[0]),int(mu.shape[1])
-        weave.inline(code, support_code=self.weave_support_code,
-                    arg_names=['N','num_inducing','input_dim','mu','AZZA','AZZA_2','target_mu','target_S','dL_dpsi2'],
-                    type_converters=weave.converters.blitz,**self.weave_options)
+        c_kernels.linear_dpsi2_dmuS(N,num_inducing,input_dim,mu,AZZA,AZZA_2,target_mu,target_S,dL_dpsi2)
 
 
     def dpsi2_dZ(self, dL_dpsi2, Z, mu, S, target):
@@ -261,32 +202,8 @@ class Linear(Kernpart):
         #dummy_target += psi2_dZ.sum(0).sum(0)
 
         AZA = self.variances*self.ZAinner
-
-        if config.getboolean('parallel', 'openmp'):
-            pragma_string = '#pragma omp parallel for private(n,mm,q)'
-        else:
-            pragma_string = ''
-
-        code="""
-        int n,m,mm,q;
-        %s
-        for(m=0;m<num_inducing;m++){
-          for(q=0;q<input_dim;q++){
-            for(mm=0;mm<num_inducing;mm++){
-              for(n=0;n<N;n++){
-                target(m,q) += dL_dpsi2(n,m,mm)*AZA(n,mm,q);
-              }
-            }
-          }
-        }
-        """ % pragma_string
-
-
         N,num_inducing,input_dim = int(mu.shape[0]),int(Z.shape[0]),int(mu.shape[1])
-        weave.inline(code, support_code=self.weave_support_code, 
-                     arg_names=['N','num_inducing','input_dim','AZA','target','dL_dpsi2'],
-                     type_converters=weave.converters.blitz,**self.weave_options)
-
+        c_kernels.linear_dpsi2_dZ(N, num_inducing, input_dim, AZA, target, dL_dpsi2)
 
     #---------------------------------------#
     #            Precomputations            #

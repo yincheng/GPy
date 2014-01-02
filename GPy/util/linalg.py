@@ -15,6 +15,8 @@ import scipy
 import warnings
 import os
 from config import *
+import cython.linalg as c_linalg
+
 
 if np.all(np.float64((scipy.__version__).split('.')[:2]) >= np.array([0, 12])):
     import scipy.linalg.lapack as lapack
@@ -279,14 +281,14 @@ def ppca(Y, Q, iterations=100):
 def ppca_missing_data_at_random(Y, Q, iters=100):
     """
     EM implementation of Probabilistic pca for when there is missing data.
-    
+
     Taken from <SheffieldML, https://github.com/SheffieldML>
 
     .. math:
         \\mathbf{Y} = \mathbf{XW} + \\epsilon \\text{, where}
         \\epsilon = \\mathcal{N}(0, \\sigma^2 \mathbf{I})
-        
-    :returns: X, W, sigma^2 
+
+    :returns: X, W, sigma^2
     """
     from numpy.ma import dot as madot
     import diag
@@ -300,7 +302,7 @@ def ppca_missing_data_at_random(Y, Q, iters=100):
     nu = 1.
     #num_obs_i = 1./Y.count()
     Ycentered = Y - Y.mean(0)
-    
+
     X = np.zeros((N,Q))
     cs = common_subarrays(Y.mask)
     cr = common_subarrays(Y.mask, 1)
@@ -309,7 +311,7 @@ def ppca_missing_data_at_random(Y, Q, iters=100):
     mu = np.zeros(D)
     if debug:
         import matplotlib.pyplot as pylab
-        fig = pylab.figure("FIT MISSING DATA"); 
+        fig = pylab.figure("FIT MISSING DATA");
         ax = fig.gca()
         ax.cla()
         lines = pylab.plot(np.zeros((N,Q)).dot(W))
@@ -467,43 +469,17 @@ def symmetrify(A, upper=False):
     N, M = A.shape
     assert N == M
 
-    c_contig_code = """
-    int iN;
-    for (int i=1; i<N; i++){
-      iN = i*N;
-      for (int j=0; j<i; j++){
-        A[i+j*N] = A[iN+j];
-      }
-    }
-    """
-    f_contig_code = """
-    int iN;
-    for (int i=1; i<N; i++){
-      iN = i*N;
-      for (int j=0; j<i; j++){
-        A[iN+j] = A[i+j*N];
-      }
-    }
-    """
+    c_linalg.symmetrify(A, N, upper=upper)
 
-    N = int(N) # for safe type casting
-    if A.flags['C_CONTIGUOUS'] and upper:
-        weave.inline(f_contig_code, ['A', 'N'], extra_compile_args=['-O3'])
-    elif A.flags['C_CONTIGUOUS'] and not upper:
-        weave.inline(c_contig_code, ['A', 'N'], extra_compile_args=['-O3'])
-    elif A.flags['F_CONTIGUOUS'] and upper:
-        weave.inline(c_contig_code, ['A', 'N'], extra_compile_args=['-O3'])
-    elif A.flags['F_CONTIGUOUS'] and not upper:
-        weave.inline(f_contig_code, ['A', 'N'], extra_compile_args=['-O3'])
+
+def symmetrify_numpy(A, upper=False):
+    if upper:
+        tmp = np.tril(A.T)
     else:
-        if upper:
-            tmp = np.tril(A.T)
-        else:
-            tmp = np.tril(A)
-        A[:] = 0.0
-        A += tmp
-        A += np.tril(tmp, -1).T
-
+        tmp = np.tril(A)
+    A[:] = 0.0
+    A += tmp
+    A += np.tril(tmp, -1).T
 
 def symmetrify_murray(A):
     A += A.T
@@ -518,26 +494,7 @@ def cholupdate(L, x):
     where L\_ is the lower chol of K + x*x^T
 
     """
-    support_code = """
-    #include <math.h>
-    """
-    code = """
-    double r,c,s;
-    int j,i;
-    for(j=0; j<N; j++){
-      r = sqrt(L(j,j)*L(j,j) + x(j)*x(j));
-      c = r / L(j,j);
-      s = x(j) / L(j,j);
-      L(j,j) = r;
-      for (i=j+1; i<N; i++){
-        L(i,j) = (L(i,j) + s*x(i))/c;
-        x(i) = c*x(i) - s*L(i,j);
-      }
-    }
-    """
-    x = x.copy()
-    N = x.size
-    weave.inline(code, support_code=support_code, arg_names=['N', 'L', 'x'], type_converters=weave.converters.blitz)
+    c_linalg.cholupdate(x, L, N)
 
 def backsub_both_sides(L, X, transpose='left'):
     """ Return L^-T * X * L^-1, assumuing X is symmetrical and L is lower cholesky"""

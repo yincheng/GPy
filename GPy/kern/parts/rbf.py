@@ -4,10 +4,10 @@
 
 from kernpart import Kernpart
 import numpy as np
-from scipy import weave
 from ...util.linalg import tdot
 from ...util.misc import fast_array_equal
 from ...util.config import *
+from ..cython import kernels as c_kernels
 
 class RBF(Kernpart):
     """
@@ -57,27 +57,6 @@ class RBF(Kernpart):
         self._Z, self._mu, self._S = np.empty(shape=(3, 1))
         self._X, self._X2, self._params = np.empty(shape=(3, 1))
 
-        # a set of optional args to pass to weave
-        weave_options_openmp = {'headers'           : ['<omp.h>'],
-                                'extra_compile_args': ['-fopenmp -O3'],
-                                'extra_link_args'   : ['-lgomp'],
-                                'libraries': ['gomp']}
-        weave_options_noopenmp = {'extra_compile_args': ['-O3']}
-
-
-
-        if config.getboolean('parallel', 'openmp'):
-            self.weave_options = weave_options_openmp
-            self.weave_support_code =  """
-            #include <omp.h>
-            #include <math.h>
-            """
-        else:
-            self.weave_options = weave_options_noopenmp
-            self.weave_support_code = """
-            #include <math.h>
-            """
-
 
     def _get_params(self):
         return np.hstack((self.variance, self.lengthscale))
@@ -110,41 +89,16 @@ class RBF(Kernpart):
         if self.ARD:
             dvardLdK = self._K_dvar * dL_dK
             var_len3 = self.variance / np.power(self.lengthscale, 3)
-            if X2 is None:
+            num_data, input_dim = int(X.shape[0]), int(self.input_dim)
+            if X2 is not None:
+                num_inducing = int(X2.shape[0])
+            else:
                 # save computation for the symmetrical case
                 dvardLdK = dvardLdK + dvardLdK.T
-                code = """
-                int q,i,j;
-                double tmp;
-                for(q=0; q<input_dim; q++){
-                  tmp = 0;
-                  for(i=0; i<num_data; i++){
-                    for(j=0; j<i; j++){
-                      tmp += (X(i,q)-X(j,q))*(X(i,q)-X(j,q))*dvardLdK(i,j);
-                    }
-                  }
-                  target(q+1) += var_len3(q)*tmp;
-                }
-                """
-                num_data, num_inducing, input_dim = int(X.shape[0]), int(X.shape[0]), int(self.input_dim)
-                weave.inline(code, arg_names=['num_data', 'num_inducing', 'input_dim', 'X', 'X2', 'target', 'dvardLdK', 'var_len3'], type_converters=weave.converters.blitz, **self.weave_options)
-            else:
-                code = """
-                int q,i,j;
-                double tmp;
-                for(q=0; q<input_dim; q++){
-                  tmp = 0;
-                  for(i=0; i<num_data; i++){
-                    for(j=0; j<num_inducing; j++){
-                      tmp += (X(i,q)-X2(j,q))*(X(i,q)-X2(j,q))*dvardLdK(i,j);
-                    }
-                  }
-                  target(q+1) += var_len3(q)*tmp;
-                }
-                """
-                num_data, num_inducing, input_dim = int(X.shape[0]), int(X2.shape[0]), int(self.input_dim)
-                # [np.add(target[1+q:2+q],var_len3[q]*np.sum(dvardLdK*np.square(X[:,q][:,None]-X2[:,q][None,:])),target[1+q:2+q]) for q in range(self.input_dim)]
-                weave.inline(code, arg_names=['num_data', 'num_inducing', 'input_dim', 'X', 'X2', 'target', 'dvardLdK', 'var_len3'], type_converters=weave.converters.blitz, **self.weave_options)
+                num_inducing = 0
+
+            # [np.add(target[1+q:2+q],var_len3[q]*np.sum(dvardLdK*np.square(X[:,q][:,None]-X2[:,q][None,:])),target[1+q:2+q]) for q in range(self.input_dim)]
+            c_kernels.rbf_dK_dtheta(num_data, num_inducing, input_dim, X, X2, target, dvardLdK, var_len3)
         else:
             target[1] += (self.variance / self.lengthscale) * np.sum(self._K_dvar * self._K_dist2 * dL_dK)
 
@@ -210,11 +164,11 @@ class RBF(Kernpart):
 
     def _crossterm_mu_S(self, Z, mu, S):
         # compute the crossterm expectation for K as the other kernel:
-        Sigma = 1./self.lengthscale2[None,None,:] + 1./S[:,None,:] # is independent across M, 
+        Sigma = 1./self.lengthscale2[None,None,:] + 1./S[:,None,:] # is independent across M,
         Sigma_tilde = (self.lengthscale2[None, :] + S)
         M = (S*mu/Sigma_tilde)[:, None, :] + (self.lengthscale2[None,:]*Z)[None, :, :]/Sigma_tilde[:, None, :]
         # make sure return is [N x M x Q]
-        return M, Sigma.repeat(Z.shape[0],1) 
+        return M, Sigma.repeat(Z.shape[0],1)
 
     def dpsi2_dtheta(self, dL_dpsi2, Z, mu, S, target):
         """Shape N,num_inducing,num_inducing,Ntheta"""
@@ -305,65 +259,15 @@ class RBF(Kernpart):
         psi2_Zdist_sq = self._psi2_Zdist_sq
         _psi2_denom = self._psi2_denom.squeeze().reshape(-1, input_dim)
         half_log_psi2_denom = 0.5 * np.log(self._psi2_denom).squeeze().reshape(-1, input_dim)
-        variance_sq = float(np.square(self.variance))
+        # variance_sq = float(np.square(self.variance))
         if self.ARD:
             lengthscale2 = self.lengthscale2
         else:
             lengthscale2 = np.ones(input_dim) * self.lengthscale2
 
-        if config.getboolean('parallel', 'openmp'):
-            pragma_string = '#pragma omp parallel for private(tmp)'
-        else:
-            pragma_string = ''
-
-        code = """
-        double tmp;
-
-        %s
-        for (int n=0; n<N; n++){
-            for (int m=0; m<num_inducing; m++){
-               for (int mm=0; mm<(m+1); mm++){
-                   for (int q=0; q<input_dim; q++){
-                       //compute mudist
-                       tmp = mu(n,q) - Zhat(m,mm,q);
-                       mudist(n,m,mm,q) = tmp;
-                       mudist(n,mm,m,q) = tmp;
-
-                       //now mudist_sq
-                       tmp = tmp*tmp/lengthscale2(q)/_psi2_denom(n,q);
-                       mudist_sq(n,m,mm,q) = tmp;
-                       mudist_sq(n,mm,m,q) = tmp;
-
-                       //now psi2_exponent
-                       tmp = -psi2_Zdist_sq(m,mm,q) - tmp - half_log_psi2_denom(n,q);
-                       psi2_exponent(n,mm,m) += tmp;
-                       if (m !=mm){
-                           psi2_exponent(n,m,mm) += tmp;
-                       }
-                   //psi2 would be computed like this, but np is faster
-                   //tmp = variance_sq*exp(psi2_exponent(n,m,mm));
-                   //psi2(n,m,mm) = tmp;
-                   //psi2(n,mm,m) = tmp;
-                   }
-                }
-            }
-        }
-
-        """ % pragma_string
-
-        if config.getboolean('parallel', 'openmp'):
-            pragma_string = '#include <omp.h>'
-        else:
-            pragma_string = ''
-
-        support_code = """
-        %s
-        #include <math.h>
-        """ % pragma_string
-
         N, num_inducing, input_dim = int(N), int(num_inducing), int(input_dim)
-        weave.inline(code, support_code=support_code,
-                     arg_names=['N', 'num_inducing', 'input_dim', 'mu', 'Zhat', 'mudist_sq', 'mudist', 'lengthscale2', '_psi2_denom', 'psi2_Zdist_sq', 'psi2_exponent', 'half_log_psi2_denom', 'psi2', 'variance_sq'],
-                     type_converters=weave.converters.blitz, **self.weave_options)
+        c_kernels.rbf_psi2(N, num_inducing, input_dim, mu, Zhat, mudist_sq,
+                           mudist, lengthscale2, _psi2_denom, psi2_Zdist_sq,
+                           psi2_exponent, half_log_psi2_denom, psi2)
 
         return mudist, mudist_sq, psi2_exponent, psi2
