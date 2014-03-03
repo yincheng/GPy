@@ -235,7 +235,11 @@ class GPBase(Model):
                 Xgrid[:,i] = v
 
             #m, v, lower, upper = self.predict(Xgrid, which_parts=which_parts)
-            m, v, lower, upper = self.predict(Xgrid, which_parts=which_parts,noise_model=fixed_inputs[0][1])
+            #m, v, lower, upper = self.predict(Xgrid, which_parts=which_parts,noise_model=fixed_inputs[0][1])
+            if len(fixed_inputs) == 0:
+                m, v, lower, upper = self.predict(Xgrid, which_parts=which_parts)
+            else:
+                m, v, lower, upper = self.predict(Xgrid, which_parts=which_parts,noise_model=fixed_inputs[0][1])
 
             if samples: #NOTE not tested with fixed_inputs
                 Ysim = self.posterior_samples(Xgrid, samples, which_parts=which_parts, full_cov=True)
