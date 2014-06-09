@@ -27,7 +27,6 @@ elif np.all(_scipyversion >= np.array([0, 12])):
 else:
     from scipy.linalg.lapack import flapack as lapack
 
-
 if config.getboolean('anaconda', 'installed') and config.getboolean('anaconda', 'MKL'):
     try:
         anaconda_path = str(config.get('anaconda', 'location'))
