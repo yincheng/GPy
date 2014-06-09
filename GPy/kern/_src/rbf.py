@@ -179,26 +179,6 @@ class RBF(Stationary):
             else:
                 _, _, _, dL_dmu, dL_dS, dL_dgamma = ssrbf_psi_comp.psiDerivativecomputations(dL_dpsi0, dL_dpsi1, dL_dpsi2, self.variance, self.lengthscale, Z, variational_posterior)
                 return dL_dmu, dL_dS, dL_dgamma
-            
-#                 ndata = variational_posterior.mean.shape[0]
-#     
-#                 _, _, _dpsi1_dgamma, _dpsi1_dmu, _dpsi1_dS, _, _ = ssrbf_psi_comp._psi1computations(self.variance, self.lengthscale, Z, variational_posterior.mean, variational_posterior.variance, variational_posterior.binary_prob)
-#                 _, _, _dpsi2_dgamma, _dpsi2_dmu, _dpsi2_dS, _, _ = ssrbf_psi_comp._psi2computations(self.variance, self.lengthscale, Z, variational_posterior.mean, variational_posterior.variance, variational_posterior.binary_prob)
-#     
-#                 #psi1
-#                 grad_mu = (dL_dpsi1[:, :, None] * _dpsi1_dmu).sum(axis=1)
-#                 grad_S = (dL_dpsi1[:, :, None] * _dpsi1_dS).sum(axis=1)
-#                 grad_gamma = (dL_dpsi1[:,:,None] * _dpsi1_dgamma).sum(axis=1)
-#     
-#                 #psi2
-#                 grad_mu += (dL_dpsi2[:, :, :, None] * _dpsi2_dmu).reshape(ndata,-1,self.input_dim).sum(axis=1)
-#                 grad_S += (dL_dpsi2[:, :, :, None] * _dpsi2_dS).reshape(ndata,-1,self.input_dim).sum(axis=1)
-#                 grad_gamma += (dL_dpsi2[:,:,:, None] * _dpsi2_dgamma).reshape(ndata,-1,self.input_dim).sum(axis=1)
-#                 
-#                 if self.group_spike_prob:
-#                     grad_gamma[:] = grad_gamma.mean(axis=0)
-#     
-#                 return grad_mu, grad_S, grad_gamma
 
         elif isinstance(variational_posterior, variational.NormalPosterior):
 
@@ -244,17 +224,18 @@ class RBF(Stationary):
 
     @Cache_this(limit=1)
     def _psi2computations(self, Z, vp):
+        from ..cython import kernels as c_kernels
+        
+        #if config.getboolean('parallel', 'openmp'):
+        #    pragma_string = '#pragma omp parallel for private(tmp, exponent_tmp)'
+        #    header_string = '#include <omp.h>'
+        #    libraries = ['gomp']
+        #else:
+        #    pragma_string = ''
+        #    header_string = ''
+        #    libraries = []
 
-        if config.getboolean('parallel', 'openmp'):
-            pragma_string = '#pragma omp parallel for private(tmp, exponent_tmp)'
-            header_string = '#include <omp.h>'
-            libraries = ['gomp']
-        else:
-            pragma_string = ''
-            header_string = ''
-            libraries = []
-
-        mu, S = vp.mean, vp.variance
+        mu, S = param_to_array(vp.mean), param_to_array(vp.variance)
 
         N, Q = mu.shape
         M = Z.shape[0]
@@ -274,99 +255,30 @@ class RBF(Stationary):
         denom_l2 = denom[:,0,0,:]*l2
 
         variance_sq = float(np.square(self.variance))
-        code = """
-        double tmp, exponent_tmp;
-        %s 
-        for (int n=0; n<N; n++)
-        {
-            for (int m=0; m<M; m++)
-            {
-                for (int mm=0; mm<(m+1); mm++)
-                {
-                    exponent_tmp = 0.0;
-                    for (int q=0; q<Q; q++)
-                    {
-                        //compute mudist
-                        tmp = mu(n,q) - Zhat(m,mm,q);
-                        mudist(n,m,mm,q) = tmp;
-                        mudist(n,mm,m,q) = tmp;
-
-                        //now mudist_sq
-                        tmp = tmp*tmp/denom_l2(n,q);
-                        mudist_sq(n,m,mm,q) = tmp;
-                        mudist_sq(n,mm,m,q) = tmp;
-
-                        //now exponent
-                        tmp = -Zdist_sq(m,mm,q) - tmp - half_log_denom(n,q);
-                        exponent_tmp += tmp;
-                    }
-                    //compute psi2 by exponentiating
-                    psi2(n,m,mm) = variance_sq * exp(exponent_tmp);
-                    psi2(n,mm,m) = psi2(n,m,mm);
-                }
-            }
-        }
-        """ % pragma_string
-
-        support_code = """
-        %s
-        #include <math.h>
-        """ % header_string
-        mu = param_to_array(mu)
-        weave.inline(code, support_code=support_code, libraries=libraries,
-                     arg_names=['N', 'M', 'Q', 'mu', 'Zhat', 'mudist_sq', 'mudist', 'denom_l2', 'Zdist_sq', 'half_log_denom', 'psi2', 'variance_sq'],
-                     type_converters=weave.converters.blitz, **self.weave_options)
+        
+        c_kernels.rbf_psi2(N, M, Q, variance_sq,
+                           mu, Zhat, Zdist_sq,
+                           mudist, mudist_sq, denom_l2,
+                           half_log_denom, psi2)
 
         return Zdist, Zdist_sq, mudist, mudist_sq, psi2
 
     def _weave_psi2_lengthscale_grads(self, dL_dpsi2, psi2, Zdist_sq, S, mudist_sq, l2):
-
         #here's the einsum equivalent, it's ~3 times slower
         #return 2.*np.einsum( 'ijk,ijk,ijkl,il->l', dL_dpsi2, psi2, Zdist_sq * (2.*S[:,None,None,:]/l2 + 1.) + mudist_sq + S[:, None, None, :] / l2, 1./(2.*S + l2))*self.lengthscale
 
-        result = np.zeros(self.input_dim)
-        if config.getboolean('parallel', 'openmp'):
-            pragma_string = '#pragma omp parallel for reduction(+:tmp)'
-            header_string = '#include <omp.h>'
-            libraries = ['gomp']
-        else:
-            pragma_string = ''
-            header_string = ''
-            libraries = []
-        code = """
-        double tmp;
-        for(int q=0; q<Q; q++)
-        {
-            tmp = 0.0;
-            %s
-            for(int n=0; n<N; n++)
-            {
-                for(int m=0; m<M; m++)
-                {
-                    //diag terms
-                    tmp += dL_dpsi2(n,m,m) * psi2(n,m,m) * (Zdist_sq(m,m,q) * (2.0*S(n,q)/l2(q) + 1.0) + mudist_sq(n,m,m,q) + S(n,q)/l2(q)) / (2.0*S(n,q) + l2(q)) ;
-
-                    //off-diag terms
-                    for(int mm=0; mm<m; mm++)
-                    {
-                        tmp += 2.0 * dL_dpsi2(n,m,mm) * psi2(n,m,mm) * (Zdist_sq(m,mm,q) * (2.0*S(n,q)/l2(q) + 1.0) + mudist_sq(n,m,mm,q) + S(n,q)/l2(q)) / (2.0*S(n,q) + l2(q)) ;
-                    }
-                }
-            }
-            result(q) = tmp;
-        }
-
-        """ % pragma_string
-        support_code = """
-        %s
-        #include <math.h>
-        """ % header_string
-        N,Q = S.shape
+        N, Q = S.shape
         M = psi2.shape[-1]
 
         S = param_to_array(S)
-        weave.inline(code, support_code=support_code, libraries=libraries,
-                     arg_names=['psi2', 'dL_dpsi2', 'N', 'M', 'Q', 'mudist_sq', 'l2', 'Zdist_sq', 'S', 'result'],
-                     type_converters=weave.converters.blitz, **self.weave_options)
-
+        result = np.zeros(Q)
+        
+        from ..cython import kernels as c_kernels
+        
+        c_kernels.rbf_psi2_lengthscale_grads(N, M, Q,
+                                             S, Zdist_sq,
+                                             mudist_sq, dL_dpsi2,
+                                             psi2, l2,
+                                             result)
+        
         return 2.*result*self.lengthscale
