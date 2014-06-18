@@ -59,7 +59,7 @@ def bgplvm_test_model(optimize=False, verbose=1, plot=False, output_dim=200, nan
         #pb.title('PCA initialisation')
 
     if optimize:
-        m.optimize('scg', messages=verbose)
+        m.optimize('bfgs', messages=verbose)
         #m2.optimize('scg', messages=verbose)
         if plot:
             m.plot()
