@@ -12,7 +12,13 @@ version = '0.4.6'
 def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
 
+openmp_flag = '-fopenmp'
 compile_flags = ["-march=native"]
+
+if os.name == 'nt':
+    openmp_flag = '/openmp'
+    compile_flags[0] = '/Ox'
+
 ext_modules = [Extension(name="GPy.util.cython.linalg",
                          language="c++",
                          sources=["GPy/util/cython/linalg.pyx"],
@@ -26,9 +32,9 @@ ext_modules = [Extension(name="GPy.util.cython.linalg",
               Extension(name="GPy.kern.cython.kernels",
                          language="c++",
                          sources=["GPy/kern/cython/kernels.pyx"],
-                         extra_link_args=['-fopenmp'],
+                         extra_link_args=[openmp_flag],
                          include_dirs=[numpy.get_include()],
-                         extra_compile_args=compile_flags+['-fopenmp'],
+                         extra_compile_args=compile_flags+[openmp_flag],
                          )
 
   ]
@@ -41,7 +47,7 @@ setup(name = 'GPy',
       license="BSD 3-clause",
       keywords="machine-learning gaussian-processes kernels",
       url="http://sheffieldml.github.com/GPy/",
-      packages=['GPy', 'GPy.core', 'GPy.kern', 'GPy.util', 'GPy.models_modules', 'GPy.inference', 'GPy.examples', 'GPy.likelihoods', 'GPy.testing', 'GPy.util.latent_space_visualizations', 'GPy.util.latent_space_visualizations.controllers', 'GPy.likelihoods.noise_models', 'GPy.kern.parts', 'GPy.mappings'],
+      packages=['GPy', 'GPy.core', 'GPy.kern', 'GPy.util', 'GPy.inference', 'GPy.examples', 'GPy.likelihoods', 'GPy.testing',    'GPy.kern.parts', 'GPy.mappings'],
       package_dir={'GPy': 'GPy'},
       package_data={'GPy': ['GPy/examples', 'gpy_config.cfg', 'util/data_resources.json']},
       py_modules=['GPy.__init__'],

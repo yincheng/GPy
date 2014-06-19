@@ -15,6 +15,10 @@ import scipy
 import warnings
 import os
 from config import *
+import scipy.linalg
+
+anaconda = False
+MKL = False
 
 _scipyversion = np.float64((scipy.__version__).split('.')[:2])
 _fix_dpotri_scipy_bug = True
@@ -34,7 +38,9 @@ if config.getboolean('anaconda', 'installed') and config.getboolean('anaconda', 
         dsyrk = mkl_rt.dsyrk
         dsyr = mkl_rt.dsyr
         _blas_available = True
-        print 'anaconda installed and mkl is loaded'
+        # set a couple of variables that can be useful for debugging purposes
+        anaconda = True
+        MKL = True
     except:
         _blas_available = False
 else:
@@ -46,6 +52,7 @@ else:
     except AttributeError as e:
         _blas_available = False
         warnings.warn("warning: caught this exception:" + str(e))
+
 
 def force_F_ordered_symmetric(A):
     """
@@ -110,7 +117,7 @@ def jitchol(A, maxtries=5):
 #     """
 #     Wrapper for lapack dtrtri function
 #     Inverse of L
-# 
+#
 #     :param L: Triangular Matrix L
 #     :param lower: is matrix lower (true) or upper (false)
 #     :returns: Li, info
@@ -146,11 +153,11 @@ def dpotrs(A, B, lower=1):
 def dpotri(A, lower=1):
     """
     Wrapper for lapack dpotri function
-    
+
     DPOTRI - compute the inverse of a real symmetric positive
       definite matrix A using the Cholesky factorization A =
       U**T*U or A = L*L**T computed by DPOTRF
-      
+
     :param A: Matrix A
     :param lower: is matrix lower (true) or upper (false)
     :returns: A inverse
@@ -159,7 +166,7 @@ def dpotri(A, lower=1):
     if _fix_dpotri_scipy_bug:
         assert lower==1, "scipy linalg behaviour is very weird. please use lower, fortran ordered arrays"
         lower = 0
-        
+
     A = force_F_ordered(A)
     R, info = lapack.dpotri(A, lower=lower) #needs to be zero here, seems to be a scipy bug
 
@@ -594,4 +601,3 @@ def backsub_both_sides(L, X, transpose='left'):
     else:
         tmp, _ = dtrtrs(L, X, lower=1, trans=0)
         return dtrtrs(L, tmp.T, lower=1, trans=0)[0].T
-
