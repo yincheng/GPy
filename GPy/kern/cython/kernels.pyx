@@ -52,7 +52,7 @@ def linear_dpsi2_dZ(int N, int num_inducing, int input_dim,
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.nonecheck(False)
-def rbf_psi2_lengthscale_grads(int N, int M, int Q, 
+def rbf_psi2_lengthscale_grads(int N, int M, int Q,
                                np.ndarray[double, ndim=2] S,
                                np.ndarray[double, ndim=3] Zdist_sq,
                                np.ndarray[double, ndim=4] mudist_sq,
@@ -69,8 +69,8 @@ def rbf_psi2_lengthscale_grads(int N, int M, int Q,
                 for mm in xrange(m):
                     tmp += 2.0 * dL_dpsi2[n,m,mm] * psi2[n,m,mm] * (Zdist_sq[m,mm,q] * (2.0*S[n,q]/l2[q] + 1.0) + mudist_sq[n,m,mm,q] + S[n,q]/l2[q]) / (2.0*S[n,q] + l2[q]) ;
 
-        result[q] = tmp    
-    
+        result[q] = tmp
+
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.nonecheck(False)
@@ -114,17 +114,17 @@ def rbf_psi2(int N, int num_inducing, int input_dim,
              np.ndarray[double, ndim=2] denom_l2,
              np.ndarray[double, ndim=2] half_log_psi2_denom,
              np.ndarray[double, ndim=3] psi2):
-    
+
     from cython.parallel import prange, parallel
     from cython import nogil
 
     cdef double tmp
-    cdef double tmp2 
+    cdef double tmp2
     cdef double exponent_tmp
     cdef int n, m, mm, q
 
     cdef extern from "math.h":
-        double exp(double x) nogil    
+        double exp(double x) nogil
 
     with nogil, parallel():
         for n in prange(N):
@@ -137,16 +137,16 @@ def rbf_psi2(int N, int num_inducing, int input_dim,
                         tmp = mu[n,q] - Zhat[m,mm,q]
                         mudist[n,m,mm,q] = tmp
                         mudist[n,mm,m,q] = tmp
-    
+
                         # now mudist_sq
                         tmp = tmp*tmp/denom_l2[n,q]
                         mudist_sq[n,m,mm,q] = tmp
                         mudist_sq[n,mm,m,q] = tmp
-    
+
                         # now psi2_exponent
                         tmp = -psi2_Zdist_sq[m,mm,q] - tmp - half_log_psi2_denom[n,q]
                         exponent_tmp = exponent_tmp+tmp
-                        
+
                         # psi2 would be computed like this, but np is faster
                     tmp2 = variance_sq * exp(exponent_tmp)
                     psi2[n,m,mm] = tmp2
