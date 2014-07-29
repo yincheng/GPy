@@ -47,13 +47,13 @@ class InferenceMethodList(LatentFunctionInference, list):
     def on_optimization_end(self):
         for inf in self:
             inf.on_optimization_end()
-    
+
     def __getstate__(self):
         state = []
         for inf in self:
             state.append(inf)
         return state
-    
+
     def __setstate__(self, state):
         for inf in state:
             self.append(inf)
@@ -67,6 +67,7 @@ from dtc import DTC
 from fitc import FITC
 from var_dtc_parallel import VarDTC_minibatch
 from var_dtc_gpu import VarDTC_GPU
+from var_dtc_missing_data_parallel import VarDTCMissingDataParallel
 
 # class FullLatentFunctionData(object):
 #
@@ -75,9 +76,9 @@ from var_dtc_gpu import VarDTC_GPU
 # class EMLikeLatentFunctionInference(LatentFunctionInference):
 #     def update_approximation(self):
 #         """
-#         This function gets called when the 
+#         This function gets called when the
 #         """
-#     
+#
 #     def inference(self, kern, X, Z, likelihood, Y, Y_metadata=None):
 #         """
 #         Do inference on the latent functions given a covariance function `kern`,
@@ -85,7 +86,7 @@ from var_dtc_gpu import VarDTC_GPU
 #         Additional metadata for the outputs `Y` can be given in `Y_metadata`.
 #         """
 #         raise NotImplementedError, "Abstract base class for full inference"
-# 
+#
 # class VariationalLatentFunctionInference(LatentFunctionInference):
 #     def inference(self, kern, X, Z, likelihood, Y, Y_metadata=None):
 #         """

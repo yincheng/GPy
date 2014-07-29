@@ -22,7 +22,7 @@ class VarDTC(LatentFunctionInference):
     For efficiency, we sometimes work with the cholesky of Y*Y.T. To save repeatedly recomputing this, we cache it.
 
     """
-    const_jitter = 1e-6
+    const_jitter = 1e-8
     def __init__(self, limit=1):
         #self._YYTfactor_cache = caching.cache()
         from ...util.caching import Cacher
@@ -194,7 +194,7 @@ class VarDTC(LatentFunctionInference):
         return post, log_marginal, grad_dict
 
 class VarDTCMissingData(LatentFunctionInference):
-    const_jitter = 1e-10
+    const_jitter = 1e-8
     def __init__(self, limit=1, inan=None):
         from ...util.caching import Cacher
         self._Y = Cacher(self._subarray_computations, limit)
@@ -355,7 +355,7 @@ class VarDTCMissingData(LatentFunctionInference):
                 het_noise, uncertain_inputs, LB,
                 _LBi_Lmi_psi1Vf, DBi_plus_BiPBi, Lm, A,
                 psi0, psi1, beta,
-                data_fit, num_data, output_dim, trYYT, Y)
+                data_fit, num_data, output_dim, trYYT, y)
 
             #if full_VVT_factor:
             woodbury_vector[:, i:i+1] = Cpsi1Vf
