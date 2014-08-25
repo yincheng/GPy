@@ -255,7 +255,7 @@ class Linear(Kern):
 
         return np.dot(ZA, inner).swapaxes(0, 1)  # NOTE: self.ZAinner \in [num_inducing x num_data x input_dim]!
 
-    def input_sensitivity(self):
+    def input_sensitivity(self, summarize=True):
         return np.ones(self.input_dim) * self.variances
 
 class LinearFull(Kern):

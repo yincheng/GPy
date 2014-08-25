@@ -40,13 +40,13 @@ class SSGPLVM(SparseGP):
 
         if X_variance is None: # The variance of the variational approximation (S)
             X_variance = np.random.uniform(0,.1,X.shape)
-            
+
         gamma = np.empty_like(X, order='F') # The posterior probabilities of the binary variable in the variational approximation
         gamma[:] = 0.5 + 0.01 * np.random.randn(X.shape[0], input_dim)
-        
+
         if group_spike:
             gamma[:] = gamma.mean(axis=0)
-        
+
         if Z is None:
             Z = np.random.permutation(X.copy())[:num_inducing]
         assert Z.shape[1] == X.shape[1]
@@ -56,16 +56,16 @@ class SSGPLVM(SparseGP):
 
         if kernel is None:
             kernel = kern.RBF(input_dim, lengthscale=fracs, ARD=True) # + kern.white(input_dim)
-                
+
         pi = np.empty((input_dim))
         pi[:] = 0.5
         self.variational_prior = SpikeAndSlabPrior(pi=pi) # the prior probability of the latent binary variable b
-        
+
         X = np.asfortranarray(X)
         X_variance = np.asfortranarray(X_variance)
         gamma = np.asfortranarray(gamma)
         X = SpikeAndSlabPosterior(X, X_variance, gamma)
-        
+
         if group_spike:
             kernel.group_spike_prob = True
             self.variational_prior.group_spike_prob = True
@@ -73,7 +73,7 @@ class SSGPLVM(SparseGP):
         SparseGP.__init__(self, X, Y, Z, kernel, likelihood, inference_method, name, **kwargs)
         self.add_parameter(self.X, index=0)
         self.add_parameter(self.variational_prior)
-        
+
     def set_X_gradients(self, X, X_grad):
         """Set the gradients of the posterior distribution of X in its specific form."""
         X.mean.gradient, X.variance.gradient, X.binary_prob.gradient = X_grad
@@ -82,7 +82,7 @@ class SSGPLVM(SparseGP):
         if isinstance(self.inference_method, VarDTC_GPU) or isinstance(self.inference_method, VarDTC_minibatch):
             update_gradients(self)
             return
-        
+
         super(SSGPLVM, self).parameters_changed()
         self._log_marginal_likelihood -= self.variational_prior.KL_divergence(self.X)
 
@@ -91,7 +91,7 @@ class SSGPLVM(SparseGP):
         # update for the KL divergence
         self.variational_prior.update_gradients_KL(self.X)
 
-    def input_sensitivity(self):
+    def input_sensitivity(self, summarize=True):
         if self.kern.ARD:
             return self.kern.input_sensitivity()
         else:
