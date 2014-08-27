@@ -31,7 +31,7 @@ def plot_latent(model, labels=None, which_indices=None,
                 resolution=50, ax=None, marker='o', s=40,
                 fignum=None, plot_inducing=False, legend=True,
                 plot_limits=None,
-                aspect='auto', updates=False, predict_kwargs={}, imshow_kwargs={}):
+                aspect='auto', updates=False, subsamples_X=True, predict_kwargs={}, imshow_kwargs={}):
     """
     :param labels: a np.array of size model.num_data containing labels for the points (can be number, strings, etc)
     :param resolution: the resolution of the grid on which to evaluate the predictive variance
@@ -45,6 +45,7 @@ def plot_latent(model, labels=None, which_indices=None,
 
     if labels is None:
         labels = np.ones(model.num_data)
+    labels = np.asarray(labels)
 
     input_1, input_2 = most_significant_input_dimensions(model, which_indices)
 
@@ -55,6 +56,12 @@ def plot_latent(model, labels=None, which_indices=None,
     else:
         X = param_to_array(X)
 
+
+    if X.shape[0] > 1000 and subsamples_X:
+        print "Warning: subsampling X, as it has more samples then 1000. X.shape={!s}".format(X.shape)
+        subsample = np.random.choice(X.shape[0], size=1000, replace=False)
+        X = X[subsample]
+        labels = labels[subsample]
 
     # create a function which computes the shading of latent space according to the output variance
     def plot_function(x):
@@ -84,7 +91,6 @@ def plot_latent(model, labels=None, which_indices=None,
                             cmap=pb.cm.binary, **imshow_kwargs)
 
     # make sure labels are in order of input:
-    labels = np.asarray(labels)
     ulabels = []
     for lab in labels:
         if not lab in ulabels:
