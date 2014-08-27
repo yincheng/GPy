@@ -25,7 +25,7 @@ class BayesianGPLVM(SparseGP):
 
     """
     def __init__(self, Y, input_dim, X=None, X_variance=None, init='PCA', num_inducing=10,
-                 Z=None, kernel=None, inference_method=None, likelihood=None, name='bayesian gplvm', **kwargs):
+                 Z=None, kernel=None, inference_method=None, likelihood=None, name='bayesian gplvm', normalizer=None):
         self.logger = logging.getLogger(self.__class__.__name__)
         if X == None:
             from ..util.initialization import initialize_latent
@@ -47,7 +47,7 @@ class BayesianGPLVM(SparseGP):
 
         if kernel is None:
             self.logger.info("initializing kernel RBF")
-            kernel = kern.RBF(input_dim, lengthscale=1./fracs, ARD=True) # + kern.white(input_dim)
+            kernel = kern.RBF(input_dim, lengthscale=1./fracs, ARD=True) #+ kern.Bias(input_dim) + kern.White(input_dim)
 
         if likelihood is None:
             likelihood = Gaussian()
@@ -66,7 +66,7 @@ class BayesianGPLVM(SparseGP):
                 self.logger.debug("creating inference_method var_dtc")
                 inference_method = VarDTC()
 
-        SparseGP.__init__(self, X, Y, Z, kernel, likelihood, inference_method, name, **kwargs)
+        SparseGP.__init__(self, X, Y, Z, kernel, likelihood, inference_method, name, normalizer=normalizer)
         self.logger.info("Adding X as parameter")
         self.add_parameter(self.X, index=0)
 
