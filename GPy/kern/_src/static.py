@@ -42,10 +42,7 @@ class Static(Kern):
         return K[:,:,None]*K[:,None,:] # NB. more efficient implementations on inherriting classes
 
     def input_sensitivity(self, summarize=True):
-        if summarize:
-            return super(Static, self).input_sensitivity(summarize=summarize)
-        else:
-            return np.ones(self.input_dim) * self.variance
+        return super(Static, self).input_sensitivity(summarize=summarize)
 
 class White(Static):
     def __init__(self, input_dim, variance=1., active_dims=None, name='white'):
