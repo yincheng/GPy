@@ -3,15 +3,17 @@
 
 
 import numpy as np
+from GPy.core.parameterization import Parameterized, Param
+from ..core.parameterization.transformations import Logexp
 
-class WarpingFunction(object):
+class WarpingFunction(Parameterized):
     """
     abstract function for warping
     z = f(y)
     """
 
-    def __init__(self):
-        raise NotImplementedError
+    def __init__(self, name):
+        super(WarpingFunction, self).__init__(name=name)
 
     def f(self,y,psi):
         """function transformation
@@ -50,6 +52,7 @@ class TanhWarpingFunction(WarpingFunction):
         """n_terms specifies the number of tanh terms to be used"""
         self.n_terms = n_terms
         self.num_parameters = 3 * self.n_terms
+        super(TanhWarpingFunction, self).__init__(name='warp_tanh')
 
     def f(self,y,psi):
         """
@@ -163,8 +166,18 @@ class TanhWarpingFunction_d(WarpingFunction):
         """n_terms specifies the number of tanh terms to be used"""
         self.n_terms = n_terms
         self.num_parameters = 3 * self.n_terms + 1
+        self.psi = np.ones((self.n_terms, 3))
 
-    def f(self,y,psi):
+        super(TanhWarpingFunction_d, self).__init__(name='warp_tanh')
+        self.psi = Param('psi', self.psi)
+        self.psi[:, :2].constrain_positive()
+
+        self.d = Param('%s' % ('d'), 1.0, Logexp())
+        self.add_parameters(self.psi)
+        self.add_parameter(self.d)
+
+
+    def f(self,y):
         """
         Transform y with f using parameter vector psi
         psi = [[a,b,c]]
@@ -175,9 +188,9 @@ class TanhWarpingFunction_d(WarpingFunction):
         #1. check that number of params is consistent
         # assert psi.shape[0] == self.n_terms, 'inconsistent parameter dimensions'
         # assert psi.shape[1] == 4, 'inconsistent parameter dimensions'
-        mpsi = psi.copy()
-        d = psi[-1]
-        mpsi = mpsi[:self.num_parameters-1].reshape(self.n_terms, 3)
+
+        d = self.d
+        mpsi = self.psi
 
         #3. transform data
         z = d*y.copy()
@@ -187,7 +200,7 @@ class TanhWarpingFunction_d(WarpingFunction):
         return z
 
 
-    def f_inv(self, z, psi, max_iterations=1000, y=None):
+    def f_inv(self, z, max_iterations=1000, y=None):
         """
         calculate the numerical inverse of f
 
@@ -198,7 +211,7 @@ class TanhWarpingFunction_d(WarpingFunction):
         z = z.copy()
         if y is None:
             y = np.ones_like(z)
-            
+
         it = 0
         update = np.inf
 
@@ -212,7 +225,7 @@ class TanhWarpingFunction_d(WarpingFunction):
         return y
 
 
-    def fgrad_y(self, y, psi, return_precalc = False):
+    def fgrad_y(self, y,return_precalc = False):
         """
         gradient of f w.r.t to y ([N x 1])
 
@@ -221,9 +234,8 @@ class TanhWarpingFunction_d(WarpingFunction):
         """
 
 
-        mpsi = psi.copy()
-        d = psi[-1]
-        mpsi = mpsi[:self.num_parameters-1].reshape(self.n_terms, 3)
+        d = self.d
+        mpsi = self.psi
 
         # vectorized version
 
@@ -240,7 +252,7 @@ class TanhWarpingFunction_d(WarpingFunction):
         return GRAD
 
 
-    def fgrad_y_psi(self, y, psi, return_covar_chain = False):
+    def fgrad_y_psi(self, y, return_covar_chain = False):
         """
         gradient of f w.r.t to y and psi
 
@@ -248,10 +260,10 @@ class TanhWarpingFunction_d(WarpingFunction):
 
         """
 
-        mpsi = psi.copy()
-        mpsi = mpsi[:self.num_parameters-1].reshape(self.n_terms, 3)
 
-        w, s, r, d = self.fgrad_y(y, psi, return_precalc = True)
+        mpsi = self.psi
+
+        w, s, r, d = self.fgrad_y(y, return_precalc = True)
 
         gradients = np.zeros((y.shape[0], y.shape[1], len(mpsi), 4))
         for i in range(len(mpsi)):
