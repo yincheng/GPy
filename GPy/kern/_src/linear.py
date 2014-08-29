@@ -78,10 +78,12 @@ class Linear(Kern):
     def update_gradients_full(self, dL_dK, X, X2=None):
         if self.ARD:
             if X2 is None:
-                self.variances.gradient = np.array([np.sum(dL_dK * tdot(X[:, i:i + 1])) for i in range(self.input_dim)])
+                #self.variances.gradient = np.array([np.sum(dL_dK * tdot(X[:, i:i + 1])) for i in range(self.input_dim)])
+                self.variances.gradient = np.einsum('ij,iq,jq->q', dL_dK, X, X)
             else:
-                product = X[:, None, :] * X2[None, :, :]
-                self.variances.gradient = (dL_dK[:, :, None] * product).sum(0).sum(0)
+                #product = X[:, None, :] * X2[None, :, :]
+                #self.variances.gradient = (dL_dK[:, :, None] * product).sum(0).sum(0)
+                self.variances.gradient = np.einsum('ij,iq,jq->q', dL_dK, X, X2)
         else:
             self.variances.gradient = np.sum(self._dot_product(X, X2) * dL_dK)
 
@@ -95,9 +97,11 @@ class Linear(Kern):
 
     def gradients_X(self, dL_dK, X, X2=None):
         if X2 is None:
-            return 2.*(((X[None,:, :] * self.variances)) * dL_dK[:, :, None]).sum(1)
+            #return 2.*(((X[None,:, :] * self.variances)) * dL_dK[:, :, None]).sum(1)
+            return np.einsum('jq,q,ij->iq', X, 2*self.variances, dL_dK)
         else:
-            return (((X2[None,:, :] * self.variances)) * dL_dK[:, :, None]).sum(1)
+            #return (((X2[None,:, :] * self.variances)) * dL_dK[:, :, None]).sum(1)
+            return np.einsum('jq,q,ij->iq', X2, self.variances, dL_dK)
 
     def gradients_X_diag(self, dL_dKdiag, X):
         return 2.*self.variances*dL_dKdiag[:,None]*X
@@ -251,7 +255,7 @@ class Linear(Kern):
 
         return np.dot(ZA, inner).swapaxes(0, 1)  # NOTE: self.ZAinner \in [num_inducing x num_data x input_dim]!
 
-    def input_sensitivity(self):
+    def input_sensitivity(self, summarize=True):
         return np.ones(self.input_dim) * self.variances
 
 class LinearFull(Kern):

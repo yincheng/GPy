@@ -10,10 +10,17 @@ class Add(CombinationKernel):
     """
     Add given list of kernels together.
     propagates gradients through.
-    
+
     This kernel will take over the active dims of it's subkernels passed in.
     """
     def __init__(self, subkerns, name='add'):
+        for i, kern in enumerate(subkerns[:]):
+            if isinstance(kern, Add):
+                del subkerns[i]
+                for part in kern.parts[::-1]:
+                    kern.remove_parameter(part)
+                    subkerns.insert(i, part)
+
         super(Add, self).__init__(subkerns, name)
 
     @Cache_this(limit=2, force_kwargs=['which_parts'])
@@ -40,7 +47,7 @@ class Add(CombinationKernel):
         return reduce(np.add, (p.Kdiag(X) for p in which_parts))
 
     def update_gradients_full(self, dL_dK, X, X2=None):
-        [p.update_gradients_full(dL_dK, X, X2) for p in self.parts]
+        [p.update_gradients_full(dL_dK, X, X2) for p in self.parts if not p.is_fixed]
 
     def update_gradients_diag(self, dL_dK, X):
         [p.update_gradients_diag(dL_dK, X) for p in self.parts]
@@ -158,7 +165,7 @@ class Add(CombinationKernel):
             target_S += b
         return target_mu, target_S
 
-    def add(self, other, name='sum'):
+    def add(self, other):
         if isinstance(other, Add):
             other_params = other.parameters[:]
             for p in other_params:
@@ -169,5 +176,11 @@ class Add(CombinationKernel):
         self.input_dim, self.active_dims = self.get_input_dim_active_dims(self.parts)
         return self
 
-    def input_sensitivity(self):
-        return reduce(np.add, [k.input_sensitivity() for k in self.parts])
+    def input_sensitivity(self, summarize=True):
+        if summarize:
+            return reduce(np.add, [k.input_sensitivity(summarize) for k in self.parts])
+        else:
+            i_s = np.zeros((len(self.parts), self.input_dim))
+            from operator import setitem
+            [setitem(i_s, (i, Ellipsis), k.input_sensitivity(summarize)) for i, k in enumerate(self.parts)]
+            return i_s

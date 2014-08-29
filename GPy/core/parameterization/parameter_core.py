@@ -191,7 +191,7 @@ class Pickleable(object):
         """
         import cPickle as pickle
         if isinstance(f, str):
-            with open(f, 'w') as f:
+            with open(f, 'wb') as f:
                 pickle.dump(self, f, protocol)
         else:
             pickle.dump(self, f, protocol)
@@ -281,7 +281,7 @@ class Gradcheckable(Pickleable, Parentable):
         """
         if self.has_parent():
             return self._highest_parent_._checkgrad(self, verbose=verbose, step=step, tolerance=tolerance)
-        return self._checkgrad(self[''], verbose=verbose, step=step, tolerance=tolerance)
+        return self._checkgrad(self, verbose=verbose, step=step, tolerance=tolerance)
 
     def _checkgrad(self, param, verbose=0, step=1e-6, tolerance=1e-3):
         """
@@ -372,8 +372,9 @@ class Indexable(Nameable, Observable):
         basically just sums up the parameter sizes which come before param.
         """
         if param.has_parent():
-            if param._parent_._get_original(param) in self.parameters:
-                return self._param_slices_[param._parent_._get_original(param)._parent_index_].start
+            p = param._parent_._get_original(param)
+            if p in self.parameters:
+                return reduce(lambda a,b: a + b.size, self.parameters[:p._parent_index_], 0)
             return self._offset_for(param._parent_) + param._parent_._offset_for(param)
         return 0
 
@@ -699,35 +700,9 @@ class OptimizationHandlable(Indexable):
 
     def _get_params_transformed(self):
         raise DeprecationWarning, "_get|set_params{_optimizer_copy_transformed} is deprecated, use self.optimizer array insetad!"
-#         # transformed parameters (apply un-transformation rules)
-#         p = self.param_array.copy()
-#         [np.put(p, ind, c.finv(p[ind])) for c, ind in self.constraints.iteritems() if c != __fixed__]
-#         if self.has_parent() and self.constraints[__fixed__].size != 0:
-#             fixes = np.ones(self.size).astype(bool)
-#             fixes[self.constraints[__fixed__]] = FIXED
-#             return p[fixes]
-#         elif self._has_fixes():
-#             return p[self._fixes_]
-#         return p
 #
     def _set_params_transformed(self, p):
         raise DeprecationWarning, "_get|set_params{_optimizer_copy_transformed} is deprecated, use self.optimizer array insetad!"
-
-#         """
-#         Set parameters p, but make sure they get transformed before setting.
-#         This means, the optimizer sees p, whereas the model sees transformed(p),
-#         such that, the parameters the model sees are in the right domain.
-#         """
-#         if not(p is self.param_array):
-#             if self.has_parent() and self.constraints[__fixed__].size != 0:
-#                 fixes = np.ones(self.size).astype(bool)
-#                 fixes[self.constraints[__fixed__]] = FIXED
-#                 self.param_array.flat[fixes] = p
-#             elif self._has_fixes(): self.param_array.flat[self._fixes_] = p
-#             else: self.param_array.flat = p
-#         [np.put(self.param_array, ind, c.f(self.param_array.flat[ind]))
-#          for c, ind in self.constraints.iteritems() if c != __fixed__]
-#         self._trigger_params_changed()
 
     def _trigger_params_changed(self, trigger_parent=True):
         """
@@ -736,7 +711,7 @@ class OptimizationHandlable(Indexable):
 
         If trigger_parent is True, we will tell the parent, otherwise not.
         """
-        [p._trigger_params_changed(trigger_parent=False) for p in self.parameters]
+        [p._trigger_params_changed(trigger_parent=False) for p in self.parameters if not p.is_fixed]
         self.notify_observers(None, None if trigger_parent else -np.inf)
 
     def _size_transformed(self):
@@ -960,19 +935,30 @@ class Parameterizable(OptimizationHandlable):
         if ignore_added_names:
             self.__dict__[pname] = param
             return
+
+        def warn_and_retry():
+            print """
+            WARNING: added a parameter with formatted name {},
+            which is already assigned to {}.
+            Trying to change the parameter name to
+
+            {}.{}
+            """.format(pname, self.hierarchy_name(), self.hierarchy_name(), param.name + "_")
+            param.name += "_"
+            self._add_parameter_name(param, ignore_added_names)
         # and makes sure to not delete programmatically added parameters
         if pname in self.__dict__:
             if not (param is self.__dict__[pname]):
                 if pname in self._added_names_:
                     del self.__dict__[pname]
                     self._add_parameter_name(param)
+                else:
+                    warn_and_retry()
         elif pname not in dir(self):
             self.__dict__[pname] = param
             self._added_names_.add(pname)
         else:
-            print "WARNING: added a parameter with formatted name {}, which is already a member of {} object. Trying to change the parameter name to\n   {}".format(pname, self.__class__, param.name + "_")
-            param.name += "_"
-            self._add_parameter_name(param, ignore_added_names)
+            warn_and_retry()
 
     def _remove_parameter_name(self, param=None, pname=None):
         assert param is None or pname is None, "can only delete either param by name, or the name of a param"

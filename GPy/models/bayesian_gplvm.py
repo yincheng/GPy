@@ -25,7 +25,7 @@ class BayesianGPLVM(SparseGP):
 
     """
     def __init__(self, Y, input_dim, X=None, X_variance=None, init='PCA', num_inducing=10,
-                 Z=None, kernel=None, inference_method=None, likelihood=None, name='bayesian gplvm', **kwargs):
+                 Z=None, kernel=None, inference_method=None, likelihood=None, name='bayesian gplvm', normalizer=None):
         self.logger = logging.getLogger(self.__class__.__name__)
         if X == None:
             from ..util.initialization import initialize_latent
@@ -47,7 +47,7 @@ class BayesianGPLVM(SparseGP):
 
         if kernel is None:
             self.logger.info("initializing kernel RBF")
-            kernel = kern.RBF(input_dim, lengthscale=1./fracs, ARD=True) # + kern.white(input_dim)
+            kernel = kern.RBF(input_dim, lengthscale=1./fracs, ARD=True) #+ kern.Bias(input_dim) + kern.White(input_dim)
 
         if likelihood is None:
             likelihood = Gaussian()
@@ -66,7 +66,7 @@ class BayesianGPLVM(SparseGP):
                 self.logger.debug("creating inference_method var_dtc")
                 inference_method = VarDTC()
 
-        SparseGP.__init__(self, X, Y, Z, kernel, likelihood, inference_method, name, **kwargs)
+        SparseGP.__init__(self, X, Y, Z, kernel, likelihood, inference_method, name, normalizer=normalizer)
         self.logger.info("Adding X as parameter")
         self.add_parameter(self.X, index=0)
 
@@ -84,6 +84,22 @@ class BayesianGPLVM(SparseGP):
 
         self.X.mean.gradient, self.X.variance.gradient = self.kern.gradients_qX_expectations(variational_posterior=self.X, Z=self.Z, dL_dpsi0=self.grad_dict['dL_dpsi0'], dL_dpsi1=self.grad_dict['dL_dpsi1'], dL_dpsi2=self.grad_dict['dL_dpsi2'])
 
+        # This is testing code -------------------------
+#         i = np.random.randint(self.X.shape[0])
+#         X_ = self.X.mean
+#         which = np.sqrt(((X_ - X_[i:i+1])**2).sum(1)).argsort()>(max(0, self.X.shape[0]-51))
+#         _, _, grad_dict = self.inference_method.inference(self.kern, self.X[which], self.Z, self.likelihood, self.Y[which], self.Y_metadata)
+#         grad = self.kern.gradients_qX_expectations(variational_posterior=self.X[which], Z=self.Z, dL_dpsi0=grad_dict['dL_dpsi0'], dL_dpsi1=grad_dict['dL_dpsi1'], dL_dpsi2=grad_dict['dL_dpsi2'])
+#
+#         self.X.mean.gradient[:] = 0
+#         self.X.variance.gradient[:] = 0
+#         self.X.mean.gradient[which] = grad[0]
+#         self.X.variance.gradient[which] = grad[1]
+
+        # update for the KL divergence
+#         self.variational_prior.update_gradients_KL(self.X, which)
+        # -----------------------------------------------
+
         # update for the KL divergence
         self.variational_prior.update_gradients_KL(self.X)
 
@@ -91,7 +107,9 @@ class BayesianGPLVM(SparseGP):
                 resolution=50, ax=None, marker='o', s=40,
                 fignum=None, plot_inducing=True, legend=True,
                 plot_limits=None,
-                aspect='auto', updates=False, predict_kwargs={}, imshow_kwargs={}):
+                aspect='auto', updates=False, subsample_X=True, predict_kwargs={}, imshow_kwargs={}):
+
+
         import sys
         assert "matplotlib" in sys.modules, "matplotlib package has not been imported."
         from ..plotting.matplot_dep import dim_reduction_plots
@@ -99,7 +117,7 @@ class BayesianGPLVM(SparseGP):
         return dim_reduction_plots.plot_latent(self, labels, which_indices,
                 resolution, ax, marker, s,
                 fignum, plot_inducing, legend,
-                plot_limits, aspect, updates, predict_kwargs, imshow_kwargs)
+                plot_limits, aspect, updates, subsample_X, predict_kwargs, imshow_kwargs)
 
     def do_test_latents(self, Y):
         """

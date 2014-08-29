@@ -68,8 +68,8 @@ class GPLVM(GP):
     def plot_latent(self, labels=None, which_indices=None,
                 resolution=50, ax=None, marker='o', s=40,
                 fignum=None, legend=True,
-                plot_limits=None, 
-                aspect='auto', updates=False, **kwargs):
+                plot_limits=None,
+                aspect='auto', updates=False, subsample_X=True, predict_kwargs={}, imshow_kwargs={}):
         import sys
         assert "matplotlib" in sys.modules, "matplotlib package has not been imported."
         from ..plotting.matplot_dep import dim_reduction_plots
@@ -77,7 +77,7 @@ class GPLVM(GP):
         return dim_reduction_plots.plot_latent(self, labels, which_indices,
                 resolution, ax, marker, s,
                 fignum, False, legend,
-                plot_limits, aspect, updates, **kwargs)
+                plot_limits, aspect, updates, subsample_X, predict_kwargs, imshow_kwargs)
 
     def plot_magnification(self, *args, **kwargs):
         return util.plot_latent.plot_magnification(self, *args, **kwargs)
