@@ -68,24 +68,24 @@ class WarpedGP(GP):
         return ll + np.log(jacobian).sum()
 
     def plot_warping(self):
-        self.warping_function.plot(self.warping_params, self.Y_untransformed.min(), self.Y_untransformed.max())
+        self.warping_function.plot(self.Y_untransformed.min(), self.Y_untransformed.max())
 
-    def predict(self, Xnew, which_parts='all', full_cov=False, pred_init=None):
+    def predict(self, Xnew, which_parts='all', pred_init=None):
         # normalize X values
-        Xnew = (Xnew.copy() - self._Xoffset) / self._Xscale
-        mu, var = GP._raw_predict(self, Xnew, full_cov=full_cov, which_parts=which_parts)
+        # Xnew = (Xnew.copy() - self._Xoffset) / self._Xscale
+        mu, var = GP._raw_predict(self, Xnew)
 
         # now push through likelihood
-        mean, var, _025pm, _975pm = self.likelihood.predictive_values(mu, var, full_cov)
+        mean, var = self.likelihood.predictive_values(mu, var)
 
         if self.predict_in_warped_space:
-            mean = self.warping_function.f_inv(mean, self.warping_params, y=pred_init)
-            var = self.warping_function.f_inv(var, self.warping_params)
+            mean = self.warping_function.f_inv(mean,  y=pred_init)
+            var = self.warping_function.f_inv(var)
 
         if self.scale_data:
             mean = self._unscale_data(mean)
 
-        return mean, var, _025pm, _975pm
+        return mean, var
 
 if __name__ == '__main__':
     X = np.random.randn(100, 1)

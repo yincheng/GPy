@@ -36,9 +36,10 @@ class WarpingFunction(Parameterized):
     def _get_param_names(self):
         raise NotImplementedError
 
-    def plot(self, psi, xmin, xmax):
+    def plot(self,  xmin, xmax):
+        psi = self.psi
         y = np.arange(xmin, xmax, 0.01)
-        f_y = self.f(y, psi)
+        f_y = self.f(y)
         from matplotlib import pyplot as plt
         plt.figure()
         plt.plot(y, f_y)
@@ -216,7 +217,7 @@ class TanhWarpingFunction_d(WarpingFunction):
         update = np.inf
 
         while it == 0 or (np.abs(update).sum() > 1e-10 and it < max_iterations):
-            update = (self.f(y, psi) - z)/self.fgrad_y(y, psi)
+            update = (self.f(y) - z)/self.fgrad_y(y)
             y -= update
             it += 1
         if it == max_iterations:
