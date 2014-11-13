@@ -59,7 +59,7 @@ try:
                             double muZ = mu(n,q)-Z(m1,q);
                              
                             double psi1_exp1 = log_gamma(n,q) - (muZ*muZ/(Snq+lq) +log_denom1(n,q))/2.;
-                            double psi1_exp2 = log_gamma1(n,q) -Zm1q*Zm1q/(2.*lq);
+                            double psi1_exp2 = log_gamma1(n,q);
                             log_psi1 += (psi1_exp1>psi1_exp2)?psi1_exp1+log1p(exp(psi1_exp2-psi1_exp1)):psi1_exp2+log1p(exp(psi1_exp1-psi1_exp2));
                         }
                         // Compute Psi_2
@@ -68,7 +68,7 @@ try:
                         double dZ = Zm1q - Zm2q;
                          
                         double psi2_exp1 = dZ*dZ/(-4.*lq)-muZhat*muZhat/(2.*Snq+lq) - log_denom2(n,q)/2. + log_gamma(n,q);
-                        double psi2_exp2 = log_gamma1(n,q) - Z2/(2.*lq);
+                        double psi2_exp2 = log_gamma1(n,q);
                         log_psi2_n += (psi2_exp1>psi2_exp2)?psi2_exp1+log1p(exp(psi2_exp2-psi2_exp1)):psi2_exp2+log1p(exp(psi2_exp1-psi2_exp2));                    
                     }
                     double exp_psi2_n = exp(log_psi2_n);
@@ -143,7 +143,7 @@ try:
                             double Zmu2_denom = Zmu*Zmu/denom;
                              
                             double exp1 = log_gamma(n,q)-(Zmu*Zmu/(Snq+lq)+log_denom1(n,q))/(2.);
-                            double exp2 = log_gamma1(n,q)-Zm1q*Zm1q/(2.*lq);
+                            double exp2 = log_gamma1(n,q);
                             double d_exp1,d_exp2;
                             if(exp1>exp2) {
                                 d_exp1 = 1.;
@@ -157,8 +157,8 @@ try:
                             dmu(n,q) += lpsi1*Zmu*d_exp1/(denom*exp_sum);
                             dS(n,q) += lpsi1*(Zmu2_denom-1.)*d_exp1/(denom*exp_sum)/2.;
                             dgamma(n,q) += lpsi1*(d_exp1*g1nq-d_exp2*gnq)/exp_sum;
-                            dl(q) += lpsi1*((Zmu2_denom+Snq/lq)/denom*d_exp1+Zm1q*Zm1q/(lq*lq)*d_exp2)/(2.*exp_sum);
-                            dZ(m1,q) += lpsi1*(-Zmu/denom*d_exp1-Zm1q/lq*d_exp2)/exp_sum;
+                            dl(q) += lpsi1*((Zmu2_denom+Snq/lq)/denom*d_exp1)/(2.*exp_sum);
+                            dZ(m1,q) += lpsi1*(-Zmu/denom*d_exp1)/exp_sum;
                         }
                         // Compute Psi_2
                         double lpsi2 = psi2n(n,m1,m2)*dL_dpsi2(m1,m2);
@@ -171,7 +171,7 @@ try:
                         double muZhat2_denom = muZhat*muZhat/denom;
                          
                         double exp1 = dZm1m2*dZm1m2/(-4.*lq)-muZhat*muZhat/(2.*Snq+lq) - log_denom2(n,q)/2. + log_gamma(n,q);
-                        double exp2 = log_gamma1(n,q) - Z2/(2.*lq);
+                        double exp2 = log_gamma1(n,q);
                         double d_exp1,d_exp2;
                         if(exp1>exp2) {
                             d_exp1 = 1.;
@@ -185,8 +185,8 @@ try:
                         dmu(n,q) += -2.*lpsi2*muZhat/denom*d_exp1/exp_sum;
                         dS(n,q) += lpsi2*(2.*muZhat2_denom-1.)/denom*d_exp1/exp_sum;
                         dgamma(n,q) += lpsi2*(d_exp1*g1nq-d_exp2*gnq)/exp_sum;
-                        dl(q) += lpsi2*(((Snq/lq+muZhat2_denom)/denom+dZm1m2*dZm1m2/(4.*lq*lq))*d_exp1+Z2/(2.*lq*lq)*d_exp2)/exp_sum;
-                        dZ(m1,q) += 2.*lpsi2*((muZhat/denom-dZm1m2/(2*lq))*d_exp1-Zm1q/lq*d_exp2)/exp_sum;                   
+                        dl(q) += lpsi2*(((Snq/lq+muZhat2_denom)/denom+dZm1m2*dZm1m2/(4.*lq*lq))*d_exp1)/exp_sum;
+                        dZ(m1,q) += 2.*lpsi2*((muZhat/denom-dZm1m2/(2*lq))*d_exp1)/exp_sum;                   
                     }
                 }
             }
