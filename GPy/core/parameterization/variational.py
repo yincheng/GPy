@@ -61,6 +61,7 @@ class SpikeAndSlabPrior(VariationalPrior):
         var_mean = np.square(mu)/self.variance
         var_S = (S/self.variance - np.log(S))
         var_gamma = (gamma*(log_gamma-np.log(pi))).sum()+(gamma1*(log_gamma1-np.log(1-pi))).sum()
+        return 0.
         return var_gamma+ (gamma* (np.log(self.variance)-1. +var_mean + var_S)).sum()/2.
 
     def update_gradients_KL(self, variational_posterior):
@@ -74,9 +75,9 @@ class SpikeAndSlabPrior(VariationalPrior):
         else:
             pi = self.pi
 
-        variational_posterior.binary_prob.gradient -= (np.log((1-pi)/pi)+log_gamma-log_gamma1+((np.square(mu)+S)/self.variance-np.log(S)+np.log(self.variance)-1.)/2.)*gamma*gamma1
-        mu.gradient -= gamma*mu/self.variance
-        S.gradient -= (1./self.variance - 1./S) * gamma /2.
+#         variational_posterior.binary_prob.gradient -= (np.log((1-pi)/pi)+log_gamma-log_gamma1+((np.square(mu)+S)/self.variance-np.log(S)+np.log(self.variance)-1.)/2.)*gamma*gamma1
+#         mu.gradient -= gamma*mu/self.variance
+#         S.gradient -= (1./self.variance - 1./S) * gamma /2.
         if self.learnPi:
             if len(self.pi)==1:
                 self.pi.gradient = (gamma/self.pi - (1.-gamma)/(1.-self.pi)).sum()
@@ -168,16 +169,16 @@ class SpikeAndSlabPosterior(VariationalPosterior):
     @Cache_this(limit=5)
     def gamma_probabilities(self):
         prob = np.zeros_like(param_to_array(self.gamma))
-        prob[self.gamma>-710] = 1./(1.+np.exp(-self.gamma[self.gamma>-710]))
+        prob[self.gamma>-700] = 1./(1.+np.exp(-self.gamma[self.gamma>-700]))
         prob1 = np.zeros_like(param_to_array(self.gamma))
-        prob1[self.gamma<710] = 1./(1.+np.exp(self.gamma[self.gamma<710]))
+        prob1[self.gamma<700] = 1./(1.+np.exp(self.gamma[self.gamma<700]))
         return prob, prob1
     
     @Cache_this(limit=5)
     def gamma_log_prob(self):
         loggamma = param_to_array(self.gamma).copy()
         loggamma[loggamma>-40] = -np.log1p(np.exp(-loggamma[loggamma>-40]))
-        loggamma1 = param_to_array(self.gamma).copy()
+        loggamma1 = -param_to_array(self.gamma).copy()
         loggamma1[loggamma1<40] = -np.log1p(np.exp(loggamma1[loggamma1<40]))
         return loggamma,loggamma1
 
