@@ -87,6 +87,55 @@ class Probit(GPTransformation):
         f2 = f**2
         return -(1/(np.sqrt(2*np.pi)))*np.exp(-0.5*(f2))*(1-f2)
 
+# Link function implementation for Gaussian Copula Process Classification (GCPC)
+class ProbitCopula(GPTransformation):
+    """
+    .. math::
+
+        g(f) = \\Phi^{-1} (mu)
+    
+    """
+    def __init__(self, k, mu = 0., sigma = 1.):
+        self.mu = mu
+        self.sigma = sigma
+        self.k = k
+
+    def inv_norm_cdf(self, f):
+        return self.sigma * inv_std_norm_cdf(f) + self.mu
+
+    def norm_pdf(self, f):
+        return std_norm_pdf((f - self.mu)/self.sigma)/self.sigma
+
+    def dinv_norm_cdf_df(self, f):
+        return 1./self.norm_pdf(self.inv_norm_cdf(f))
+
+    def inv_marginal_cdf(self, f):
+        return self.inv_norm_cdf(f)
+
+    def marginal_pdf(self, f):
+        return self.norm_pdf(f)
+
+    def dinv_marginal_cdf_df(self, f):
+        return self.dinv_norm_cdf_df(f)
+
+    def transcopula(self,f):
+        return self.inv_marginal_cdf(std_norm_cdf(f/np.sqrt(self.k)))
+    
+    def dtranscopula_df(self, f):
+        return self.dinv_marginal_cdf_df(std_norm_cdf(f/np.sqrt(self.k))) * (std_norm_pdf(f/np.sqrt(self.k))) / np.sqrt(self.k)
+
+    def transf(self,f):
+        return std_norm_cdf(self.transcopula(f))
+
+    def dtransf_df(self,f):
+        return std_norm_pdf(self.transcopula(f)) * self.dtranscopula_df(f)
+
+    def d2transf_df2(self,f):
+        raise NotImplementedError, "This function is not implemented!"
+
+    def d3transf_df3(self,f):
+        raise NotImplementedError, "This function is not implemented!"
+
 
 class Cloglog(GPTransformation):
     """

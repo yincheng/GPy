@@ -6,6 +6,7 @@ from ..util.univariate_Gaussian import std_norm_pdf, std_norm_cdf
 import link_functions
 from likelihood import Likelihood
 from scipy import stats
+from scipy import integrate
 
 class Bernoulli(Likelihood):
     """
@@ -71,6 +72,28 @@ class Bernoulli(Likelihood):
             N = std_norm_pdf(a)
             mu_hat = v_i/tau_i + sign*N/Z_hat/np.sqrt(tau_i)
             sigma2_hat = (1. - a*N/Z_hat - np.square(N/Z_hat))/tau_i
+        elif isinstance(self.gp_link, link_functions.ProbitCopula):
+            mu_cav = v_i/tau_i
+            var_cav = 1./tau_i
+            # Sampling approach
+            '''
+            samples = np.random.randn(1e6)
+            samples = samples * np.sqrt(var_cav) + mu_cav
+            likelihood_eval = np.array(map(self.gp_link.transf, samples)
+            if sign == -1:
+                likelihood_eval = 1. - likelihood_eval
+            Z_hat = np.average(likelihood_eval)
+            mu_hat = np.average(samples * likelihood_eval) / Z_hat
+            sigma2_hat = np.average((samples ** 2) * likelihood_eval)/Z_hat - (mu_hat ** 2)
+            '''
+            cav_dist_fn = lambda x: std_norm_pdf((x-mu_cav) * np.sqrt(tau_i)) * np.sqrt(tau_i)
+            likelihood_fn = lambda x: np.where(sign == 1., self.gp_link.transf(x), 1. - self.gp_link.transf(x))
+            integrand_fn = lambda x: cav_dist_fn(x) * likelihood_fn(x)
+            Z_hat = integrate.quad(integrand_fn, -np.inf, np.inf)[0]
+            mu_hat = integrate.quad(lambda x: x * integrand_fn(x), -np.inf, np.inf)[0]/Z_hat
+            sec_moment_hat = integrate.quad(lambda x: ((x ** 2) * integrand_fn(x)), -np.inf, np.inf)[0]/Z_hat
+            sigma2_hat = sec_moment_hat - (mu_hat ** 2)
+            assert sigma2_hat >0.0, str('sigma2_hat <=0.: '+ str(Z_hat) + ', ' + str(mu_hat) + ', ' + str(sigma2_hat))
         else:
             #TODO: do we want to revert to numerical quadrature here?
             raise ValueError("Exact moment matching not available for link {}".format(self.gp_link.__name__))
@@ -84,7 +107,17 @@ class Bernoulli(Likelihood):
 
         elif isinstance(self.gp_link, link_functions.Heaviside):
             return stats.norm.cdf(mu/np.sqrt(variance))
-
+        elif isinstance(self.gp_link, link_functions.ProbitCopula):
+            # integrand_fn = lambda x: x * self.gp_link.transf(x) * std_norm_pdf((x - mu)/np.sqrt(variance))/np.sqrt(variance)
+            # return integrate.quad(integrand_fn, -np.inf, np.inf)
+            #FIXME: Get rid of this temporary workaround loop for better performance
+            base_samples = np.random.randn(1e3)
+            output = np.array([])
+            for i in np.arange(0, len(mu)):
+                samples = base_samples * np.sqrt(variance[i]) + mu[i]
+                output = np.append(output, np.average(np.array(map(self.gp_link.transf, samples))))
+            output = np.transpose(np.array([output]))
+            return output
         else:
             raise NotImplementedError
 
