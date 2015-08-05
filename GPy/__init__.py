@@ -16,6 +16,7 @@ import testing
 from numpy.testing import Tester
 import kern
 import plotting
+import svb
 
 # Direct imports for convenience:
 from core import Model
