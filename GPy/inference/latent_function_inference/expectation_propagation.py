@@ -120,3 +120,8 @@ class EP(LatentFunctionInference):
 
         mu_tilde = v_tilde/tau_tilde
         return mu, Sigma, mu_tilde, tau_tilde, Z_hat
+
+    def get_ep_parameters(self):
+        assert not(self._ep_approximation is None), "Please run EP before retrieving the EP parameters"
+        mu, Sigma, mu_tilde, tau_tilde, Z_hat = self._ep_approximation
+        return mu_tilde, tau_tilde
