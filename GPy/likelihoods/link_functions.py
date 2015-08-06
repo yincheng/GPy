@@ -106,8 +106,6 @@ class ProbitCopula(GPTransformation):
     def norm_pdf(self, f):
         return std_norm_pdf((f - self.mu)/self.sigma)/self.sigma
 
-    def dinv_norm_cdf_df(self, f):
-        return 1./self.norm_pdf(self.inv_norm_cdf(f))
 
     def inv_marginal_cdf(self, f):
         return self.inv_norm_cdf(f)
@@ -115,11 +113,12 @@ class ProbitCopula(GPTransformation):
     def marginal_pdf(self, f):
         return self.norm_pdf(f)
 
-    def dinv_marginal_cdf_df(self, f):
-        return self.dinv_norm_cdf_df(f)
 
     def transcopula(self,f):
         return self.inv_marginal_cdf(std_norm_cdf(f/np.sqrt(self.k)))
+    
+    def dinv_marginal_cdf_df(self, f):
+        return 1./self.marginal_pdf(self.transcopula(f))
     
     def dtranscopula_df(self, f):
         return self.dinv_marginal_cdf_df(std_norm_cdf(f/np.sqrt(self.k))) * (std_norm_pdf(f/np.sqrt(self.k))) / np.sqrt(self.k)
