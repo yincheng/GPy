@@ -189,6 +189,18 @@ class Bernoulli(Likelihood):
         denom = np.where(y, ff, -(1-ff))
         return 1./denom
 
+    def dlogpdf_dthetaq(self, y, z):
+        assert isinstance(self.gp_link, link_functions.ProbitCopula), 'Function only available for ProbitCopula link function'
+        link_val = self.gp_link.transf(z)
+        mu_prime = self.dlogpdf_dlink(link_val, y) * self.gp_link.dtransf_dmu(z)
+        sigma_prime = self.dlogpdf_dlink(link_val, y) * self.gp_link.dtransf_dsigma(z)
+        return mu_prime, sigma_prime
+
+    def dlogpdf_dk(self, y, z):
+        assert isinstance(self.gp_link, link_functions.ProbitCopula), 'Function only available for ProbitCopula link function'
+        k_prime = self.dlogpdf_dlink(self.gp_link.transf(z), y) * self.gp_link.dtransf_dk(z)
+        return k_prime
+
     def d2logpdf_dlink2(self, inv_link_f, y, Y_metadata=None):
         """
         Hessian at y, given inv_link_f, w.r.t inv_link_f the hessian will be 0 unless i == j

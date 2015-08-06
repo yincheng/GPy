@@ -106,6 +106,11 @@ class ProbitCopula(GPTransformation):
     def norm_pdf(self, f):
         return std_norm_pdf((f - self.mu)/self.sigma)/self.sigma
 
+    def dnorm_cdf_dmu(self, f):
+        return - self.norm_pdf(f) / self.sigma
+
+    def dnorm_cdf_dsigma(self, f):
+        return self.dnorm_cdf_dmu(f) * (f - self.mu)/self.sigma
 
     def inv_marginal_cdf(self, f):
         return self.inv_norm_cdf(f)
@@ -113,6 +118,11 @@ class ProbitCopula(GPTransformation):
     def marginal_pdf(self, f):
         return self.norm_pdf(f)
 
+    def dmarginal_cdf_dmu(self, f):
+        return self.dnorm_cdf_dmu(f)
+
+    def dmarginal_cdf_dsigma(self, f):
+        return self.dnorm_cdf_dsigma(f)
 
     def transcopula(self,f):
         return self.inv_marginal_cdf(std_norm_cdf(f/np.sqrt(self.k)))
@@ -125,9 +135,21 @@ class ProbitCopula(GPTransformation):
 
     def transf(self,f):
         return std_norm_cdf(self.transcopula(f))
-
+    
     def dtransf_df(self,f):
         return std_norm_pdf(self.transcopula(f)) * self.dtranscopula_df(f)
+
+    def dtransf_dmu(self, f):
+        ''' f being z'''
+        return std_norm_pdf(self.transcopula(f)) * self.dinv_marginal_cdf_df(f) * self.dmarginal_cdf_dmu(self.transcopula(f))
+
+    def dtransf_dsigma(self, f):
+        ''' f being z'''
+        return std_norm_pdf(self.transcopula(f)) * self.dinv_marginal_cdf_df(f) * self.dmarginal_cdf_dsigma(self.transcopula(f))
+
+    def dtransf_dk(self, f):
+        ''' f being z'''
+        return std_norm_pdf(self.transcopula(f)) * self.dinv_marginal_cdf_df(f) *  std_norm_pdf(f/np.sqrt(self.k)) * -0.5 * f / (self.k ** (-1.5))
 
     def d2transf_df2(self,f):
         raise NotImplementedError, "This function is not implemented!"
