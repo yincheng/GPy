@@ -37,13 +37,16 @@ class ADAGrad(object):
         self.theta = theta.copy().reshape((-1,1))
         self.grad_history = np.zeros_like(self.theta)
         self.M = self.theta.shape[0]
+        
+        self.theta_del_norm_hist = np.array([])
+        self.f_hist = np.array([])
 
         #self.f = np.ones((self.N))*np.nan
 
 
-    def optimize(self, num_passes = 10, num_steps = None):
-        if num_steps==None:
-            num_steps = num_passes*self.N
+    def optimize(self, num_passes = 10, num_steps = 100):
+#        if num_steps==None:
+#            num_steps = num_passes*self.N
         for i in np.arange(0, num_steps):
             if not self.optimization_step():
                 break
