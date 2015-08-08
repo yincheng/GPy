@@ -192,9 +192,8 @@ class Bernoulli(Likelihood):
     def dlogpdf_dthetaq(self, y, z):
         assert isinstance(self.gp_link, link_functions.ProbitCopula), 'Function only available for ProbitCopula link function'
         link_val = self.gp_link.transf(z)
-        mu_prime = self.dlogpdf_dlink(link_val, y) * self.gp_link.dtransf_dmu(z)
-        sigma_prime = self.dlogpdf_dlink(link_val, y) * self.gp_link.dtransf_dsigma(z)
-        return mu_prime, sigma_prime
+        theta_prime = self.dlogpdf_dlink(link_val, y) * self.gp_link.dtransf_dtheta(z)
+        return theta_prime
 
     def dlogpdf_dk(self, y, z):
         assert isinstance(self.gp_link, link_functions.ProbitCopula), 'Function only available for ProbitCopula link function'

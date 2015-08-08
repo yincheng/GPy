@@ -95,61 +95,98 @@ class ProbitCopula(GPTransformation):
         g(f) = \\Phi^{-1} (mu)
     
     """
-    def __init__(self, k, mu = 0., sigma = 1.):
-        self.mu = mu
-        self.sigma = sigma
+    class MarginalDistribution(GPTransformation):
+        def __init__(self, params):
+            raise NotImplementedError, "This function is not implemented!"
+        def get_param_vec(self):
+            raise NotImplementedError, "This function is not implemented!"
+        def set_param_vec(self, params):
+            raise NotImplementedError, "This function is not implemented!"
+        def pdf(self, f):
+            raise NotImplementedError, "This function is not implemented!"
+        def cdf(self, f):
+            raise NotImplementedError, "This function is not implemented!"
+        def quantile(self, f):
+            raise NotImplementedError, "This function is not implemented!"
+        def dcdf_dtheta(self, f):
+            raise NotImplementedError, "This function is not implemented!"
+
+        def dquantile_dcdf(self, f):
+            return 1./self.pdf(self.quantile(f))
+
+        def dquantile_dtheta(self, f):
+            return self.dquantile_dcdf(f) * self.dcdf_dtheta(self.quantile(f))
+
+    class NormalDistribution(MarginalDistribution):
+        def __init__(self, params):
+            self.mu = 0.
+            self.var = 0.
+            self.sigma = np.sqrt(self.var)
+            self.param_vec = np.array([self.mu, self.var])
+            self.set_param_vec(params)
+
+        def get_param_vec(self):
+            return self.param_vec
+
+        def set_param_vec(self, params):
+            assert len(params) == 2, "Normal Marginal Distribution requires exactly 2 parameters: np.array([mean, variance])"
+            self.mu = params[0]
+            self.var = params[1]
+            self.sigma = np.sqrt(self.var)
+            self.param_vec[0] = self.mu
+            self.param_vec[1] = self.var
+            assert self.var>=0., "Variance cannot be <0."
+            return True
+
+        def pdf(self, f):
+            return std_norm_pdf((f - self.mu)/self.sigma)/self.sigma
+
+        def cdf(self, f):
+            return std_norm_cdf((f - self.mu)/self.sigma)
+
+        def quantile(self, f):
+            return self.sigma * inv_std_norm_cdf(f) + self.mu
+
+        def dcdf_dtheta(self, f):
+            dmu = - self.pdf(f)
+            dvar = - .5 * self.pdf(f) * (f - self.mu)/(self.sigma ** 3)
+            return np.array([dmu, dvar])
+        #FIXME: HACK
+        def dquantile_dtheta(self, f):
+            return np.array([1., 0.5 * inv_std_norm_cdf(f)[0]/self.sigma])
+
+    def __init__(self, k, marginal):
+        assert k>0., 'k param in copula needs to be >0.'
+        # assert isinstance(marginal, MarginalDistribution), "Please define marginal distribution!"
+
         self.k = k
+        self.marginal = marginal
 
-    def inv_norm_cdf(self, f):
-        return self.sigma * inv_std_norm_cdf(f) + self.mu
-
-    def norm_pdf(self, f):
-        return std_norm_pdf((f - self.mu)/self.sigma)/self.sigma
-
-    def dnorm_cdf_dmu(self, f):
-        return - self.norm_pdf(f) / self.sigma
-
-    def dnorm_cdf_dsigma(self, f):
-        return self.dnorm_cdf_dmu(f) * (f - self.mu)/self.sigma
-
-    def inv_marginal_cdf(self, f):
-        return self.inv_norm_cdf(f)
-
-    def marginal_pdf(self, f):
-        return self.norm_pdf(f)
-
-    def dmarginal_cdf_dmu(self, f):
-        return self.dnorm_cdf_dmu(f)
-
-    def dmarginal_cdf_dsigma(self, f):
-        return self.dnorm_cdf_dsigma(f)
-
-    def transcopula(self,f):
-        return self.inv_marginal_cdf(std_norm_cdf(f/np.sqrt(self.k)))
+    def copula(self, z):
+        return self.marginal.quantile(std_norm_cdf(z/np.sqrt(self.k)))
     
-    def dinv_marginal_cdf_df(self, f):
-        return 1./self.marginal_pdf(self.transcopula(f))
+    def dcopula_dz(self, z):
+        return self.marginal.dquantile_dcdf(std_norm_cdf(z/np.sqrt(self.k))) * (std_norm_pdf(z/np.sqrt(self.k))) / np.sqrt(self.k)
     
-    def dtranscopula_df(self, f):
-        return self.dinv_marginal_cdf_df(f) * (std_norm_pdf(f/np.sqrt(self.k))) / np.sqrt(self.k)
+    def dcopula_dtheta(self, z):
+        return self.marginal.dquantile_dtheta(std_norm_cdf(z/np.sqrt(self.k)))
 
-    def transf(self,f):
-        return std_norm_cdf(self.transcopula(f))
+    def dcopula_dk(self, z):
+        return self.marginal.dquantile_dcdf(std_norm_cdf(z/np.sqrt(self.k))) * (std_norm_pdf(z/np.sqrt(self.k))) * -0.5 * z * (self.k ** (-1.5))
+
+    def transf(self, z):
+        return std_norm_cdf(self.copula(z))
     
-    def dtransf_df(self,f):
-        return std_norm_pdf(self.transcopula(f)) * self.dtranscopula_df(f)
+    def dtransf_df(self, z):
+        return std_norm_pdf(self.copula(z)) * self.dcopula_dz(z)
 
-    def dtransf_dmu(self, f):
+    def dtransf_dtheta(self, z):
         ''' f being z'''
-        return std_norm_pdf(self.transcopula(f)) * self.dinv_marginal_cdf_df(f) * self.dmarginal_cdf_dmu(self.transcopula(f))
+        return std_norm_pdf(self.copula(z)) * self.dcopula_dtheta(z)
 
-    def dtransf_dsigma(self, f):
+    def dtransf_dk(self, z):
         ''' f being z'''
-        return std_norm_pdf(self.transcopula(f)) * self.dinv_marginal_cdf_df(f) * self.dmarginal_cdf_dsigma(self.transcopula(f))
-
-    def dtransf_dk(self, f):
-        ''' f being z'''
-        return std_norm_pdf(self.transcopula(f)) * self.dinv_marginal_cdf_df(f) *  std_norm_pdf(f/np.sqrt(self.k)) * -0.5 * f / (self.k ** (-1.5))
+        return std_norm_pdf(self.copula(z)) * self.dcopula_dk(z)
 
     def d2transf_df2(self,f):
         raise NotImplementedError, "This function is not implemented!"
