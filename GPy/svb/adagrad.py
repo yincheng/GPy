@@ -67,7 +67,10 @@ class ADAGrad(object):
         learning_rates[np.isinf(learning_rates)] = self.learning_rate
         self.theta -= learning_rates * gradii
         self.grad_history += gradii**2
-        self.f[idx] = lossii
+        #self.f[idx] = lossii
+        
+        self.theta_del_norm_hist = np.append(self.theta_del_norm_hist, np.linalg.norm(learning_rates * gradii))
+        self.f_hist = np.append(self.f_hist, lossi)
 
         if not np.isfinite(lossii):
             print("Non-finite subfunction.  Ending run.")
