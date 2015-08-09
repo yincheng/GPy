@@ -149,11 +149,11 @@ class ProbitCopula(GPTransformation):
 
         def dcdf_dtheta(self, f):
             dmu = - self.pdf(f)
-            dvar = - .5 * self.pdf(f) * (f - self.mu)/(self.sigma ** 3)
+            dvar = - .5 * self.pdf(f) * (f - self.mu)/(self.sigma ** 2)
             return np.array([dmu, dvar])
         #FIXME: HACK
         def dquantile_dtheta(self, f):
-            return np.array([1., 0.5 * inv_std_norm_cdf(f)[0]/self.sigma])
+            return np.array([1., 0.5 * inv_std_norm_cdf(f)/self.sigma])
 
     def __init__(self, k, marginal):
         assert k>0., 'k param in copula needs to be >0.'
