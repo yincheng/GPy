@@ -35,6 +35,7 @@ class ADAGrad(object):
 
         self.num_steps = max_iter
         self.theta = theta.copy().reshape((-1,1))
+        self.theta_history = np.array([np.transpose(self.theta)[0]])
         self.grad_history = np.zeros_like(self.theta)
         self.M = self.theta.shape[0]
         
@@ -69,6 +70,7 @@ class ADAGrad(object):
         self.grad_history += gradii**2
         #self.f[idx] = lossii
         
+        self.theta_history = np.append(self.theta_history, np.array([np.transpose(self.theta)[0]]))
         self.theta_del_norm_hist = np.append(self.theta_del_norm_hist, np.linalg.norm(learning_rates * gradii))
         self.f_hist = np.append(self.f_hist, lossi)
 
