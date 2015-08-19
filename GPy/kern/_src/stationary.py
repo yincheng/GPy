@@ -80,7 +80,12 @@ class Stationary(Kern):
         K(X, X2) = K_of_r((X-X2)**2)
         """
         r = self._scaled_dist(X, X2)
-        return self.K_of_r(r)
+        output = self.K_of_r(r)
+        (m, n) = np.shape(output)
+        if m == n:
+            return output + 1.e-6 * np.eye(len(output))
+        else:
+            return output
 
     @Cache_this(limit=3, ignore_args=())
     def dK_dr_via_X(self, X, X2):
