@@ -198,6 +198,8 @@ class Bernoulli(Likelihood):
     def dlogpdf_dk(self, y, z):
         assert isinstance(self.gp_link, link_functions.ProbitCopula), 'Function only available for ProbitCopula link function'
         k_prime = self.dlogpdf_dlink(self.gp_link.transf(z), y) * self.gp_link.dtransf_dk(z)
+        assert not(np.isnan(k_prime)), 'derivative is nan'
+        assert not(np.isinf(k_prime)), 'derivative is inf'
         return k_prime
 
     def d2logpdf_dlink2(self, inv_link_f, y, Y_metadata=None):
