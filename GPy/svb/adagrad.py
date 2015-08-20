@@ -33,7 +33,7 @@ class ADAGrad(object):
         self.args = args
         self.kwargs = kwargs
 
-        self.num_steps = max_iter
+        self.num_steps = 0.
         self.theta = theta.copy().reshape((-1,1))
         self.grad_history = np.zeros_like(self.theta)
         self.M = self.theta.shape[0]
@@ -58,7 +58,6 @@ class ADAGrad(object):
 
     def optimization_step(self):
         #idx = np.random.randint(self.N)
-        fudge_factor = 1.
         gradii = np.zeros_like(self.theta)
         lossii = 0.
         for i in np.arange(0, self.reps):
@@ -66,9 +65,8 @@ class ADAGrad(object):
             lossii += lossi / self.reps
             gradii += gradi.reshape(gradii.shape) / self.reps
 
-        self.num_steps += 1
-        #learning_rates = self.learning_rate / (np.sqrt(1./self.num_steps + self.grad_history))
-        learning_rates = self.learning_rate / (np.sqrt(fudge_factor + self.grad_history))
+        self.num_steps += 1.
+        learning_rates = self.learning_rate / (np.sqrt(1./self.num_steps + self.grad_history))
         learning_rates[np.isinf(learning_rates)] = self.learning_rate
         self.theta -= learning_rates * gradii
         self.grad_history += gradii**2
