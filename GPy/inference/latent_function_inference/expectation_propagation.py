@@ -104,6 +104,8 @@ class EP(LatentFunctionInference):
             tau_tilde_root = np.sqrt(tau_tilde)
             Sroot_tilde_K = tau_tilde_root[:,None] * K
             B = np.eye(num_data) + Sroot_tilde_K * tau_tilde_root[None,:]
+            assert not(np.isnan(B).any()), 'B matrix contains NaN'
+            assert not(np.isinf(B).any()), 'B matrix contains inf'
             L = jitchol(B)
             V, _ = dtrtrs(L, Sroot_tilde_K, lower=1)
             Sigma = K - np.dot(V.T,V)
