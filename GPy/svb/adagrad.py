@@ -41,7 +41,7 @@ class ADAGrad(object):
         self.theta_del_norm_hist = np.array([])
         self.f_hist = np.array([])
         self.theta_history = np.array([np.transpose(self.theta)[0]])
-
+        self.learning_rates = np.zeros(np.shape(self.theta_history))
         #self.f = np.ones((self.N))*np.nan
 
 
@@ -68,6 +68,7 @@ class ADAGrad(object):
         self.num_steps += 1.
         learning_rates = self.learning_rate / (np.sqrt(1./self.num_steps + self.grad_history))
         learning_rates[np.isinf(learning_rates)] = self.learning_rate
+        self.learning_rates = np.r_[self.learning_rates, learning_rates.T]
         self.theta -= learning_rates * gradii
         self.grad_history += gradii**2
         #self.f[idx] = lossii
