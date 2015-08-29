@@ -72,7 +72,7 @@ class Bernoulli(Likelihood):
             N = std_norm_pdf(a)
             mu_hat = v_i/tau_i + sign*N/Z_hat/np.sqrt(tau_i)
             sigma2_hat = (1. - a*N/Z_hat - np.square(N/Z_hat))/tau_i
-        elif isinstance(self.gp_link, link_functions.ProbitCopula):
+        elif isinstance(self.gp_link, (link_functions.ProbitCopula, link_functions.IdentityCopula)):
             mu_cav = v_i/tau_i
             var_cav = 1./tau_i
             # Sampling approach
@@ -107,7 +107,7 @@ class Bernoulli(Likelihood):
 
         elif isinstance(self.gp_link, link_functions.Heaviside):
             return stats.norm.cdf(mu/np.sqrt(variance))
-        elif isinstance(self.gp_link, link_functions.ProbitCopula):
+        elif isinstance(self.gp_link, (link_functions.ProbitCopula, link_functions.IdentityCopula)):
             # integrand_fn = lambda x: x * self.gp_link.transf(x) * std_norm_pdf((x - mu)/np.sqrt(variance))/np.sqrt(variance)
             # return integrate.quad(integrand_fn, -np.inf, np.inf)
             #FIXME: Get rid of this temporary workaround loop for better performance
@@ -190,13 +190,13 @@ class Bernoulli(Likelihood):
         return 1./denom
 
     def dlogpdf_dthetaq(self, y, z):
-        assert isinstance(self.gp_link, link_functions.ProbitCopula), 'Function only available for ProbitCopula link function'
+        assert isinstance(self.gp_link, (link_functions.ProbitCopula, link_functions.IdentityCopula)), 'Function only available for ProbitCopula link function'
         link_val = self.gp_link.transf(z)
         theta_prime = self.dlogpdf_dlink(link_val, y) * self.gp_link.dtransf_dtheta(z)
         return theta_prime
 
     def dlogpdf_dk(self, y, z):
-        assert isinstance(self.gp_link, link_functions.ProbitCopula), 'Function only available for ProbitCopula link function'
+        assert isinstance(self.gp_link, (link_functions.ProbitCopula, link_functions.IdentityCopula)), 'Function only available for ProbitCopula link function'
         k_prime = self.dlogpdf_dlink(self.gp_link.transf(z), y) * self.gp_link.dtransf_dk(z)
         assert not(np.isnan(k_prime)), 'derivative is nan'
         assert not(np.isinf(k_prime)), 'derivative is inf'
