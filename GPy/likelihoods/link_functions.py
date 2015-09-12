@@ -7,6 +7,7 @@ import numpy as np
 from scipy import stats
 import scipy as sp
 from scipy.stats import beta
+from scipy.stats import laplace
 from GPy.util.univariate_Gaussian import std_norm_pdf,std_norm_cdf,inv_std_norm_cdf
 from scipy.optimize import brentq
 
@@ -76,6 +77,62 @@ class MarginalDistribution(GPTransformation):
         assert not(np.isnan(output).any()), 'function returns NaN'
         assert not(np.isinf(output).any()), 'function returns inf'
         return output
+
+#Begin: Laplace
+class LaplaceDistribution(MarginalDistribution):
+    def __init__(self, params):
+        self.mu = 0.
+        self.b = 0.
+        self.laplace_obj = None
+        self.param_vec = np.array([self.mu, self.b])
+        self.set_param_vec(params)
+
+    def get_param_vec(self):
+        return self.param_vec
+
+    def set_param_vec(self, params):
+        assert len(params) == 2, "Laplace Marginal Distribution requires exactly 2 parameters: np.array([mu, b])"
+        self.mu = params[0]
+        self.b = params[1]
+        self.param_vec[0] = self.mu
+        self.param_vec[1] = self.b
+        assert self.b>0., "b cannot be <=0."
+        self.laplace_obj = laplace(self.mu, self.b)
+        return True
+
+    def pdf(self, f):
+        output = self.laplace_obj.pdf(f)
+        assert not(np.isnan(output).any()), 'function returns NaN'
+        assert not(np.isinf(output).any()), 'function returns inf'
+        return output
+
+    def cdf(self, f):
+        output = self.laplace_obj.cdf(f)
+        assert not(np.isnan(output).any()), 'function returns NaN'
+        assert not(np.isinf(output).any()), 'function returns inf'
+        return output
+
+    def quantile(self, f):
+        assert not(np.any(f>1.)), 'Input to quantile needs to be in <=1.'
+        assert not(np.any(f<0.)), 'Input to quantile needs to be in >=0.'
+        output = self.laplace_obj.ppf(f)
+        output = np.clip(output, -1.e50, 1.e50)
+        assert not(np.isnan(output).any()), 'function returns NaN'
+        assert not(np.isinf(output).any()), 'function returns inf'
+        return output
+
+    def dcdf_dtheta(self, f):
+        raise NotImplementedError, "This function is not implemented!"
+        assert not(np.isnan(output).any().any()), 'function returns NaN'
+        assert not(np.isinf(output).any().any()), 'function returns inf'
+        return output
+
+    def dquantile_dtheta(self, f):
+        raise NotImplementedError, "This function is not implemented!"
+        assert not(np.isnan(output).any().any()), 'function returns NaN'
+        assert not(np.isinf(output).any().any()), 'function returns inf'
+        return output
+#End: Laplace
 
 class BetaDistribution(MarginalDistribution):
     def __init__(self, params):
@@ -343,6 +400,7 @@ class IdentityCopula(GPTransformation):
 
     def copula(self, z):
         output = self.marginal.quantile(std_norm_cdf(z))
+        output = np.clip(output, -1.e50, 1.e50)
         assert not(np.isnan(output).any()), 'function returns NaN'
         assert not(np.isinf(output).any()), 'function returns inf'
         return output
@@ -418,6 +476,13 @@ class IdentityCopula(GPTransformation):
 
     def d3transf_df3(self,f):
         raise NotImplementedError, "This function is not implemented!"
+
+class RegressionCopula(IdentityCopula):
+    def __init__(self, k, marginal):
+        assert k>0., 'k param in copula needs to be >0.'
+        # assert isinstance(marginal, MarginalDistribution), "Please define marginal distribution!"
+        self.k = k
+        self.marginal = marginal
 
 class Probit(GPTransformation):
     """
