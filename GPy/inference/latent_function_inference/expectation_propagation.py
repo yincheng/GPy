@@ -94,7 +94,14 @@ class EP(LatentFunctionInference):
                 #Site parameters update
                 delta_tau = self.delta/self.eta*(1./sigma2_hat[i] - 1./Sigma[i,i])
                 delta_v = self.delta/self.eta*(mu_hat[i]/sigma2_hat[i] - mu[i]/Sigma[i,i])
-                tau_tilde[i] += delta_tau
+                tau_update = tau_tilde[i] + delta_tau
+                assert tau_update>=0., 'tau <0.'
+                tau_tilde[i] = tau_update
+                #HACK: fix negative precision
+                # Method 1: Doesn't seem to work. precision all end up being close to 0.
+                #tau_tilde[i] = .0 if tau_update < 0. else tau_update
+                # Method 2
+                #tau_tilde[i] = tau_tilde[i] if tau_update < 0. else tau_update
                 v_tilde[i] += delta_v
                 #Posterior distribution parameters update
                 DSYR(Sigma, Sigma[:,i].copy(), -delta_tau/(1.+ delta_tau*Sigma[i,i]))
