@@ -115,8 +115,8 @@ class LaplaceDistribution(MarginalDistribution):
     def quantile(self, f):
         assert not(np.any(f>1.)), 'Input to quantile needs to be in <=1.'
         assert not(np.any(f<0.)), 'Input to quantile needs to be in >=0.'
+        f = np.clip(f, 1.e-323, 1.-1.e-16)
         output = self.laplace_obj.ppf(f)
-        output = np.clip(output, -1.e50, 1.e50)
         assert not(np.isnan(output).any()), 'function returns NaN'
         assert not(np.isinf(output).any()), 'function returns inf'
         return output

@@ -83,10 +83,17 @@ class Gaussian(Likelihood):
             mu_cav = v_i/tau_i
             var_cav = 1./tau_i
             cav_dist_fn = lambda x: std_norm_pdf((x-mu_cav) * np.sqrt(tau_i)) * np.sqrt(tau_i)
-            #likelihood_fn = lambda x: np.where(sign == 1., self.gp_link.transf(x), 1. - self.gp_link.transf(x))
             ll_sd = np.sqrt(self.variance)
             likelihood_fn = lambda x: std_norm_pdf((data_i - self.gp_link.transf(x))/ll_sd)/ll_sd
-            integrand_fn = lambda x: cav_dist_fn(x) * likelihood_fn(x)
+            #integrand_fn = lambda x: cav_dist_fn(x) * likelihood_fn(x)
+            integrand_fn = lambda x: (1./(2. * np.pi * np.sqrt(tau_i) * ll_sd)) * np.exp(-0.5 * tau_i * ((x-mu_cav)**2) - 0.5 * (((data_i - self.gp_link.transf(x))/ll_sd)**2))
+            '''
+            samples = np.random.randn(10000)/np.sqrt(tau_i) + mu_cav
+            sample_ll = np.array([likelihood_fn(sample) for sample in samples])
+            Z_hat = np.mean(sample_ll)
+            mu_hat = np.mean(samples * sample_ll)/Z_hat
+            sec_moment_hat = np.mean((samples**2) * sample_ll)/Z_hat
+            '''
             Z_hat = integrate.quad(integrand_fn, -np.inf, np.inf)[0]
             mu_hat = integrate.quad(lambda x: x * integrand_fn(x), -np.inf, np.inf)[0]/Z_hat
             sec_moment_hat = integrate.quad(lambda x: ((x ** 2) * integrand_fn(x)), -np.inf, np.inf)[0]/Z_hat
@@ -95,6 +102,40 @@ class Gaussian(Likelihood):
         else:
             raise ValueError("Exact moment matching not available for link {}".format(self.gp_link.__name__))
         return Z_hat, mu_hat, sigma2_hat
+
+    def _moments_match_ep(self,obs,tau,v):
+        """
+        Calculation of moments using quadrature
+
+        :param obs: observed output
+        :param tau: cavity distribution 1st natural parameter (precision)
+        :param v: cavity distribution 2nd natural paramenter (mu*precision)
+        """
+        #Compute first integral for zeroth moment.
+        #NOTE constant np.sqrt(2*pi/tau) added at the end of the function
+        mu = v/tau
+        def int_1(f):
+            return self.pdf(f, obs)*np.exp(-0.5*tau*np.square(mu-f))
+        z_scaled, accuracy = quad(int_1, -np.inf, np.inf)
+
+        #Compute second integral for first moment
+        def int_2(f):
+            return f*self.pdf(f, obs)*np.exp(-0.5*tau*np.square(mu-f))
+        mean, accuracy = quad(int_2, -np.inf, np.inf)
+        mean /= z_scaled
+
+        #Compute integral for variance
+        def int_3(f):
+            return (f**2)*self.pdf(f, obs)*np.exp(-0.5*tau*np.square(mu-f))
+        Ef2, accuracy = quad(int_3, -np.inf, np.inf)
+        Ef2 /= z_scaled
+        variance = Ef2 - mean**2
+
+        #Add constant to the zeroth moment
+        #NOTE: this constant is not needed in the other moments because it cancells out.
+        z = z_scaled/np.sqrt(2*np.pi/tau)
+
+        return z, mean, variance
 
     def predictive_values(self, mu, var, full_cov=False, Y_metadata=None):
         #if isinstance(self.gp_link, link_functions.RegressionCopula):
