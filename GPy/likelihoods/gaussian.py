@@ -98,7 +98,7 @@ class Gaussian(Likelihood):
             mu_hat = integrate.quad(lambda x: x * integrand_fn(x), -np.inf, np.inf)[0]/Z_hat
             sec_moment_hat = integrate.quad(lambda x: ((x ** 2) * integrand_fn(x)), -np.inf, np.inf)[0]/Z_hat
             sigma2_hat = sec_moment_hat - (mu_hat ** 2)
-            assert sigma2_hat >0.0, str('sigma2_hat <=0.: '+ str(Z_hat) + ', ' + str(mu_hat) + ', ' + str(sigma2_hat))
+            #assert sigma2_hat >0.0, str('sigma2_hat <=0.: '+ str(Z_hat) + ', ' + str(mu_hat) + ', ' + str(sigma2_hat))
         else:
             raise ValueError("Exact moment matching not available for link {}".format(self.gp_link.__name__))
         return Z_hat, mu_hat, sigma2_hat

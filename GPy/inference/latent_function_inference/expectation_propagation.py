@@ -88,6 +88,8 @@ class EP(LatentFunctionInference):
             for i in update_order:
                 #Cavity distribution parameters
                 tau_cav = 1./Sigma[i,i] - self.eta*tau_tilde[i]
+                if tau_cav<0.:
+                    continue
                 v_cav = mu[i]/Sigma[i,i] - self.eta*v_tilde[i]
                 #Marginal moments
                 Z_hat[i], mu_hat[i], sigma2_hat[i] = likelihood.moments_match_ep(Y[i], tau_cav, v_cav)#, Y_metadata=None)#=(None if Y_metadata is None else Y_metadata[i]))
@@ -95,7 +97,9 @@ class EP(LatentFunctionInference):
                 delta_tau = self.delta/self.eta*(1./sigma2_hat[i] - 1./Sigma[i,i])
                 delta_v = self.delta/self.eta*(mu_hat[i]/sigma2_hat[i] - mu[i]/Sigma[i,i])
                 tau_update = tau_tilde[i] + delta_tau
-                assert tau_update>=0., 'tau <0.'
+                #assert tau_update>=0., 'tau <0.'
+                if tau_update<0.:
+                    continue
                 tau_tilde[i] = tau_update
                 #HACK: fix negative precision
                 # Method 1: Doesn't seem to work. precision all end up being close to 0.
@@ -108,6 +112,7 @@ class EP(LatentFunctionInference):
                 mu = np.dot(Sigma, v_tilde)
 
             #(re) compute Sigma and mu using full Cholesky decompy
+            tau_tilde[tau_tilde==0.] = 1.e-20
             tau_tilde_root = np.sqrt(tau_tilde)
             Sroot_tilde_K = tau_tilde_root[:,None] * K
             B = np.eye(num_data) + Sroot_tilde_K * tau_tilde_root[None,:]
