@@ -36,7 +36,7 @@ class Gaussian(Likelihood):
         if gp_link is None:
             gp_link = link_functions.Identity()
 
-        assert isinstance(gp_link, (link_functions.Identity, link_functions.RegressionCopula)), "the likelihood only implemented for the identity and regression copula link"
+        assert isinstance(gp_link, (link_functions.Identity, link_functions.RegressionCopula, link_functions.SVCopula)), "the likelihood only implemented for the identity and regression copula link"
 
         super(Gaussian, self).__init__(gp_link, name=name)
 
@@ -51,12 +51,18 @@ class Gaussian(Likelihood):
         return Y/self.gaussian_variance(Y_metadata)
 
     def gaussian_variance(self, Y_metadata=None):
+        if isinstance(self.gp_link, link_functions.SVCopula):
+            raise NotImplementedError
         return self.variance
 
     def update_gradients(self, grad):
+        #if isinstance(self.gp_link, link_functions.SVCopula):
+        #    raise NotImplementedError
         self.variance.gradient = grad
 
     def exact_inference_gradients(self, dL_dKdiag,Y_metadata=None):
+        if isinstance(self.gp_link, link_functions.SVCopula):
+            raise NotImplementedError
         return dL_dKdiag.sum()
 
     def _preprocess_values(self, Y):
@@ -99,6 +105,28 @@ class Gaussian(Likelihood):
             sec_moment_hat = integrate.quad(lambda x: ((x ** 2) * integrand_fn(x)), -np.inf, np.inf)[0]/Z_hat
             sigma2_hat = sec_moment_hat - (mu_hat ** 2)
             #assert sigma2_hat >0.0, str('sigma2_hat <=0.: '+ str(Z_hat) + ', ' + str(mu_hat) + ', ' + str(sigma2_hat))
+        elif isinstance(self.gp_link, link_functions.SVCopula):
+            mu_cav = v_i/tau_i
+            var_cav = 1./tau_i
+            cav_dist_fn = lambda x: std_norm_pdf((x-mu_cav) * np.sqrt(tau_i)) * np.sqrt(tau_i)
+            likelihood_fn = lambda x: std_norm_pdf((data_i)/self.gp_link.transf(x))/ll_sd
+            def integrand_fn(x):
+                ll_sd = self.gp_link.transf(x)
+                cav = cav_dist_fn(x)
+                ll = std_norm_pdf(data_i/ll_sd)/ll_sd
+                output = cav * ll
+                return output
+            Z_hat = integrate.quad(integrand_fn, -np.inf, np.inf)[0]
+            mu_hat = integrate.quad(lambda x: x * integrand_fn(x), -np.inf, np.inf)[0]/Z_hat
+            sec_moment_hat = integrate.quad(lambda x: ((x ** 2) * integrand_fn(x)), -np.inf, np.inf)[0]/Z_hat
+            '''
+            samples = np.random.randn(10000)/np.sqrt(tau_i) + mu_cav
+            sample_ll = np.array([likelihood_fn(sample) for sample in samples])
+            Z_hat = np.mean(sample_ll)
+            mu_hat = np.mean(samples * sample_ll)/Z_hat
+            sec_moment_hat = np.mean((samples**2) * sample_ll)/Z_hat
+            '''
+            sigma2_hat = sec_moment_hat - (mu_hat ** 2)
         else:
             raise ValueError("Exact moment matching not available for link {}".format(self.gp_link.__name__))
         return Z_hat, mu_hat, sigma2_hat
@@ -138,8 +166,8 @@ class Gaussian(Likelihood):
         return z, mean, variance
 
     def predictive_values(self, mu, var, full_cov=False, Y_metadata=None):
-        #if isinstance(self.gp_link, link_functions.RegressionCopula):
-        #    raise NotImplementedError
+        if isinstance(self.gp_link, link_functions.SVCopula):
+            raise NotImplementedError
         if full_cov:
             if var.ndim == 2:
                 var += np.eye(var.shape[0])*self.variance
@@ -152,17 +180,17 @@ class Gaussian(Likelihood):
         return mu, var
 
     def predictive_mean(self, mu, sigma):
-        if isinstance(self.gp_link, link_functions.RegressionCopula):
+        if isinstance(self.gp_link, (link_functions.RegressionCopula, link_functions.SVCopula)):
             raise NotImplementedError
         return mu
 
     def predictive_variance(self, mu, sigma, predictive_mean=None):
-        if isinstance(self.gp_link, link_functions.RegressionCopula):
+        if isinstance(self.gp_link, (link_functions.RegressionCopula, link_functions.SVCopula)):
             raise NotImplementedError
         return self.variance + sigma**2
 
     def predictive_quantiles(self, mu, var, quantiles, Y_metadata=None):
-        if isinstance(self.gp_link, link_functions.RegressionCopula):
+        if isinstance(self.gp_link, (link_functions.RegressionCopula, link_functions.SVCopula)):
             raise NotImplementedError
         return  [stats.norm.ppf(q/100.)*np.sqrt(var + self.variance) + mu for q in quantiles]
 
@@ -182,7 +210,7 @@ class Gaussian(Likelihood):
         :rtype: float
         """
         #Assumes no covariance, exp, sum, log for numerical stability
-        if isinstance(self.gp_link, link_functions.RegressionCopula):
+        if isinstance(self.gp_link, (link_functions.RegressionCopula, link_functions.SVCopula)):
             raise NotImplementedError
         return np.exp(np.sum(np.log(stats.norm.pdf(y, link_f, np.sqrt(self.variance)))))
 
@@ -201,7 +229,7 @@ class Gaussian(Likelihood):
         :returns: log likelihood evaluated for this point
         :rtype: float
         """
-        if isinstance(self.gp_link, link_functions.RegressionCopula):
+        if isinstance(self.gp_link, (link_functions.RegressionCopula, link_functions.SVCopula)):
             raise NotImplementedError
         assert np.asarray(link_f).shape == np.asarray(y).shape
         N = y.shape[0]
@@ -224,7 +252,7 @@ class Gaussian(Likelihood):
         :returns: gradient of log likelihood evaluated at points link(f)
         :rtype: Nx1 array
         """
-        if isinstance(self.gp_link, link_functions.RegressionCopula):
+        if isinstance(self.gp_link, (link_functions.RegressionCopula, link_functions.SVCopula)):
             raise NotImplementedError
         assert np.asarray(link_f).shape == np.asarray(y).shape
         s2_i = (1.0/self.variance)
@@ -253,7 +281,7 @@ class Gaussian(Likelihood):
             Will return diagonal of hessian, since every where else it is 0, as the likelihood factorizes over cases
             (the distribution for y_i depends only on link(f_i) not on link(f_(j!=i))
         """
-        if isinstance(self.gp_link, link_functions.RegressionCopula):
+        if isinstance(self.gp_link, (link_functions.RegressionCopula, link_functions.SVCopula)):
             raise NotImplementedError
         assert np.asarray(link_f).shape == np.asarray(y).shape
         N = y.shape[0]
@@ -275,7 +303,7 @@ class Gaussian(Likelihood):
         :returns: third derivative of log likelihood evaluated at points link(f)
         :rtype: Nx1 array
         """
-        if isinstance(self.gp_link, link_functions.RegressionCopula):
+        if isinstance(self.gp_link, (link_functions.RegressionCopula, link_functions.SVCopula)):
             raise NotImplementedError
         assert np.asarray(link_f).shape == np.asarray(y).shape
         N = y.shape[0]
@@ -297,7 +325,7 @@ class Gaussian(Likelihood):
         :returns: derivative of log likelihood evaluated at points link(f) w.r.t variance parameter
         :rtype: float
         """
-        if isinstance(self.gp_link, link_functions.RegressionCopula):
+        if isinstance(self.gp_link, (link_functions.RegressionCopula, link_functions.SVCopula)):
             raise NotImplementedError
         assert np.asarray(link_f).shape == np.asarray(y).shape
         e = y - link_f
@@ -321,7 +349,7 @@ class Gaussian(Likelihood):
         :returns: derivative of log likelihood evaluated at points link(f) w.r.t variance parameter
         :rtype: Nx1 array
         """
-        if isinstance(self.gp_link, link_functions.RegressionCopula):
+        if isinstance(self.gp_link, (link_functions.RegressionCopula, link_functions.SVCopula)):
             raise NotImplementedError
         assert np.asarray(link_f).shape == np.asarray(y).shape
         s_4 = 1.0/(self.variance**2)
@@ -343,7 +371,7 @@ class Gaussian(Likelihood):
         :returns: derivative of log hessian evaluated at points link(f_i) and link(f_j) w.r.t variance parameter
         :rtype: Nx1 array
         """
-        if isinstance(self.gp_link, link_functions.RegressionCopula):
+        if isinstance(self.gp_link, (link_functions.RegressionCopula, link_functions.SVCopula)):
             raise NotImplementedError
         assert np.asarray(link_f).shape == np.asarray(y).shape
         s_4 = 1.0/(self.variance**2)
@@ -352,19 +380,19 @@ class Gaussian(Likelihood):
         return d2logpdf_dlink2_dvar
 
     def dlogpdf_link_dtheta(self, f, y, Y_metadata=None):
-        if isinstance(self.gp_link, link_functions.RegressionCopula):
+        if isinstance(self.gp_link, (link_functions.RegressionCopula, link_functions.SVCopula)):
             raise NotImplementedError
         dlogpdf_dvar = self.dlogpdf_link_dvar(f, y, Y_metadata=Y_metadata)
         return np.asarray([[dlogpdf_dvar]])
 
     def dlogpdf_dlink_dtheta(self, f, y, Y_metadata=None):
-        if isinstance(self.gp_link, link_functions.RegressionCopula):
+        if isinstance(self.gp_link, (link_functions.RegressionCopula, link_functions.SVCopula)):
             raise NotImplementedError
         dlogpdf_dlink_dvar = self.dlogpdf_dlink_dvar(f, y, Y_metadata=Y_metadata)
         return dlogpdf_dlink_dvar
 
     def d2logpdf_dlink2_dtheta(self, f, y, Y_metadata=None):
-        if isinstance(self.gp_link, link_functions.RegressionCopula):
+        if isinstance(self.gp_link, (link_functions.RegressionCopula, link_functions.SVCopula)):
             raise NotImplementedError
         d2logpdf_dlink2_dvar = self.d2logpdf_dlink2_dvar(f, y, Y_metadata=Y_metadata)
         return d2logpdf_dlink2_dvar
@@ -376,6 +404,8 @@ class Gaussian(Likelihood):
         .. math::
             E_{p(y|f)}[y]
         """
+        if isinstance(self.gp_link, link_functions.SVCopula):
+            raise NotImplementedError
         return self.gp_link.transf(gp)
 
     def _variance(self, gp):
@@ -385,6 +415,8 @@ class Gaussian(Likelihood):
         .. math::
             Var_{p(y|f)}[y]
         """
+        if isinstance(self.gp_link, link_functions.SVCopula):
+            raise NotImplementedError
         return self.variance
 
     def samples(self, gp, Y_metadata=None):
@@ -393,6 +425,8 @@ class Gaussian(Likelihood):
 
         :param gp: latent variable
         """
+        if isinstance(self.gp_link, link_functions.SVCopula):
+            raise NotImplementedError
         orig_shape = gp.shape
         gp = gp.flatten()
         #orig_shape = gp.shape
@@ -404,7 +438,7 @@ class Gaussian(Likelihood):
         """
         assumes independence
         """
-        if isinstance(self.gp_link, link_functions.RegressionCopula):
+        if isinstance(self.gp_link, (link_functions.RegressionCopula, link_functions.SVCopula)):
             raise NotImplementedError
         v = var_star + self.variance
         return -0.5*np.log(2*np.pi) -0.5*np.log(v) - 0.5*np.square(y_test - mu_star)/v

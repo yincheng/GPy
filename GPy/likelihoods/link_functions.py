@@ -5,6 +5,7 @@ from IPython.core.debugger import Tracer
 
 import numpy as np
 from scipy import stats
+from scipy.misc import logsumexp
 import scipy as sp
 from scipy.stats import beta
 from scipy.stats import laplace
@@ -390,6 +391,43 @@ class Identity(GPTransformation):
 
     def d3transf_df3(self,f):
         return np.zeros_like(f)
+
+class SVCopula(GPTransformation):
+    def __init__(self, w):
+        self.a = w[0]
+        self.b = w[1]
+        self.c = w[2]
+    
+    def get_params(self):
+        return np.array([self.a, self.b, self.c])
+ 
+    def transf(self, f):
+        if type(f) == np.ndarray:
+            f_shape = np.shape(f)
+            f_n = f_shape[0] if len(f_shape) == 1 else f_shape[0] * f_shape[1]
+            f_vec = np.reshape(f, (f_n,))
+        else:
+            f_vec = np.array([f])
+            f_n = len(f_vec)
+        et = self.b * (f_vec + self.c)
+        et = np.c_[et, np.zeros(f_n)]
+        output = self.a * logsumexp(et, 1)
+        output = np.reshape(output, f_shape) if f_n > 1 else output[0]
+        return output + 1.e-10
+
+    def inv_transf(self, f):
+        if type(f) == np.ndarray:
+            f_shape = np.shape(f)
+            f_n = f_shape[0] if len(f_shape) == 1 else f_shape[0] * f_shape[1]
+            f_vec = np.reshape(f, (f_n,))
+        else:
+            f_vec = np.array([f])
+            f_n = len(f_vec)
+        et = (f_vec - 1.e-10)/self.a
+        et = np.c_[et, np.zeros(f_n)]
+        output = (logsumexp(et, 1, np.c_[np.ones(f_n), -1. * np.ones(f_n)]) / self.b) - self.c
+        output = np.reshape(output, f_shape) if f_n > 1 else output[0]
+        return output
 
 class IdentityCopula(GPTransformation):
     def __init__(self, k, marginal):
